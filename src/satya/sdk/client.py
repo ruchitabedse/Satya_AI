@@ -10,26 +10,39 @@ class SatyaClient:
         self.scraper = Scraper(repo_path)
         self.git = GitHandler(repo_path)
 
+        self.current_task = None
         storage.ensure_satya_dirs()
-        self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_filename = f"{self.agent_name}_{self.session_id}.log"
+        # use daily log file format: agent_name_YYYYMMDD.log
+        today_str = datetime.now().strftime("%Y%m%d")
+        self.log_filename = f"{self.agent_name}_{today_str}.log"
         self.log_path = os.path.join(storage.AGENTS_DIR, self.log_filename)
 
         try:
             with open(self.log_path, 'a') as f:
                 f.write(f"Session started for agent: {self.agent_name} at {datetime.now()}\n")
-            self.git.commit_and_push([self.log_path], f"Agent {self.agent_name} started session {self.session_id}")
+            # We don't need a session ID for the commit message anymore, just the timestamp
+            self.git.commit_and_push([self.log_path], f"Agent {self.agent_name} active on {today_str}")
         except Exception as e:
             print(f"Failed to initialize log file: {e}")
 
     def log(self, message):
         timestamp = datetime.now().isoformat()
         entry = f"[{timestamp}] {message}\n"
+
+        # Log to file (always)
         try:
             with open(self.log_path, 'a') as f:
                 f.write(entry)
         except Exception as e:
             print(f"Failed to write log: {e}")
+
+        # Log to task context (if active)
+        if self.current_task:
+            try:
+                # Add comment to the task file
+                self.tasks.add_comment(self.current_task["id"], message, commit=False)
+            except Exception as e:
+                print(f"Failed to add comment to task: {e}")
 
     def flush_logs(self):
         self.git.commit_and_push([self.log_path], f"Update logs for {self.agent_name}")
@@ -51,3 +64,69 @@ class SatyaClient:
         else:
             self.log(f"Failed to scrape {url}")
             return None
+
+    def pick_task(self):
+        """
+        Implements the Scrum Master logic:
+        1. Check if agent already has a task.
+        2. Find highest priority 'To Do' task.
+        3. Assign it and mark In Progress.
+        """
+        if self.current_task:
+            self.log(f"Guardrail: You already have a task in progress: {self.current_task['title']}")
+            return self.current_task
+
+        all_tasks = self.tasks.list_all()
+
+        # Persistent check: Any task already assigned to me and In Progress?
+        # This handles agent restarts.
+        for t in all_tasks:
+            if t.get("assignee") == self.agent_name and t.get("status") == "In Progress":
+                self.log(f"Resuming existing task: {t['title']}")
+                self.current_task = t
+                return t
+
+        # Guardrail: Check WIP limits (future: implement strict count)
+
+        todo_tasks = [t for t in all_tasks if t.get("status") == "To Do"]
+
+        if not todo_tasks:
+            self.log("No tasks in 'To Do' column.")
+            return None
+
+        # Prioritization Logic
+        priority_map = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
+
+        # Sort by Priority (asc) then Created At (asc - oldest first)
+        todo_tasks.sort(key=lambda t: (
+            priority_map.get(t.get("priority", "Medium"), 2),
+            t.get("created_at", "")
+        ))
+
+        best_task = todo_tasks[0]
+
+        # Assign and Start
+        self.log(f"Picking highest priority task: {best_task['title']}")
+        self.tasks.update_task(best_task["id"], {
+            "status": "In Progress",
+            "assignee": self.agent_name
+        })
+        # Refresh task data to ensure we have latest state
+        self.current_task = self.tasks.get_task(best_task["id"])
+        return self.current_task
+
+    def finish_task(self, status="Done"):
+        """
+        Completes the current task context.
+        """
+        if not self.current_task:
+            self.log("Guardrail: No active task to finish.")
+            return False
+
+        task_id = self.current_task["id"]
+        self.log(f"Finishing task: {self.current_task['title']} -> {status}")
+
+        self.tasks.update_task_status(task_id, status)
+        self.current_task = None
+        self.flush_logs()
+        return True

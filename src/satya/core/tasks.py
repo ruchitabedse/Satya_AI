@@ -26,7 +26,8 @@ class Tasks:
             "priority": priority,
             "assignee": assignee or "Unassigned",
             "created_at": now,
-            "updated_at": now
+            "updated_at": now,
+            "comments": []
         }
 
         filepath = storage.get_task_path(task_id)
@@ -80,6 +81,30 @@ class Tasks:
     def get_task(self, task_id):
         filepath = storage.get_task_path(task_id)
         return storage.load_json(filepath)
+
+    def add_comment(self, task_id, comment, commit=False):
+        filepath = storage.get_task_path(task_id)
+        task = storage.load_json(filepath)
+
+        if not task:
+            return False
+
+        if "comments" not in task:
+            task["comments"] = []
+
+        now = datetime.now().isoformat()
+        entry = {
+            "timestamp": now,
+            "text": comment
+        }
+        task["comments"].append(entry)
+        task["updated_at"] = now
+
+        if storage.save_json(filepath, task):
+            if commit:
+                self.git_handler.commit_and_push([filepath], f"Comment on task {task_id}")
+            return True
+        return False
 
     def get_stats(self):
         tasks = self.list_all()

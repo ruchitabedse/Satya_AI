@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import sys
 import json
+import html
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -700,6 +701,17 @@ elif page == "Task Board":
                         tasks_manager.delete_task(task['id'])
                         st.rerun()
 
+                with st.expander("Activity Log", expanded=False):
+                    comments = task.get("comments", [])
+                    if comments:
+                        for c in reversed(comments):
+                            ts_obj = datetime.fromisoformat(c.get("timestamp", ""))
+                            ts_str = ts_obj.strftime("%H:%M:%S")
+                            txt = html.escape(c.get("text", ""))
+                            st.markdown(f"<div style='font-size: 0.8rem; margin-bottom: 0.4rem; border-left: 2px solid var(--border); padding-left: 0.5rem;'><span style='color: var(--text-secondary);'>{ts_str}</span> {txt}</div>", unsafe_allow_html=True)
+                    else:
+                        st.caption("No activity recorded yet.")
+
 
 # ─── TRUTH SOURCE PAGE ─────────────────────────────────
 elif page == "Truth Source":
@@ -814,7 +826,8 @@ elif page == "Agent Logs":
                 file_size = os.path.getsize(log_path)
 
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Agent", selected_log.split("_")[0] if "_" in selected_log else selected_log)
+                agent_name = selected_log.rsplit("_", 1)[0] if "_" in selected_log else selected_log
+                c1.metric("Agent", agent_name)
                 c2.metric("Last Modified", mod_time.strftime("%b %d, %H:%M"))
                 c3.metric("Size", f"{file_size / 1024:.1f} KB" if file_size > 1024 else f"{file_size} B")
 

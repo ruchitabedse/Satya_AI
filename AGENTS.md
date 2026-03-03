@@ -25,10 +25,11 @@
 │                                                             │
 │  1. Deploy Satya (install deps, start dashboard)            │
 │  2. Initialize SDK: satya.init(agent_name="your_name")      │
-│  3. Create tasks: satya.create_task("title", "description") │
-│  4. Log progress: satya.log("Working on X...")              │
-│  5. Scrape knowledge: satya.scrape("https://...")           │
-│  6. Update tasks: satya.update_task(id, "Done")             │
+│  3. Create tasks (backlog): satya.create_task("title", "desc") │
+│  4. PICK WORK: satya.pick_task() (Auto-assigns highest prio)   │
+│  5. Log progress: satya.log("Working...") (Auto-comments on task) │
+│  6. Scrape knowledge: satya.scrape("https://...")              │
+│  7. Finish task: satya.finish_task()                           │
 │                                                             │
 │  All data is saved to satya_data/ as flat files             │
 │                          │                                  │
@@ -108,29 +109,46 @@ client = satya.init(agent_name="your_agent_name")
 
 This creates a session log file at `satya_data/agents/your_agent_name_YYYYMMDD_HHMMSS.log`. The human will see this log on the dashboard.
 
-### Step 3: Create Tasks for Your Work
+### Step 3: Populate the Backlog (Optional)
 
-Before starting any piece of work, create a task. The human sees these on the Task Board.
+If there are no tasks, create some. But usually, you or the human will have created tasks already.
 
 ```python
-task = client.create_task("Build authentication system", "Implement JWT-based login and signup")
-satya.log(f"Created task: {task['id']}")
+satya.create_task("Build authentication system", "Implement JWT-based login and signup")
 ```
 
-### Step 4: Update Status as You Work
+### Step 4: Pick the Highest Priority Task
 
-Move tasks through the workflow so the human can track your progress in real time:
+**This is the most important step.** Instead of choosing what to do, let Satya tell you what is most critical. Satya acts as your Scrum Master.
 
 ```python
-# When you start working on it
-client.update_task(task["id"], "In Progress")
-satya.log("Starting work on authentication...")
+# Automatically finds the highest priority 'To Do' task, assigns it to you,
+# moves it to 'In Progress', and sets it as your active context.
+task = satya.pick_task()
 
-# ... do your actual work here ...
+if not task:
+    satya.log("No tasks available!")
+    # Handle idle state
+else:
+    satya.log(f"Starting work on: {task['title']}")
+```
 
-# When you finish
-client.update_task(task["id"], "Done")
-satya.log("Authentication system complete")
+### Step 5: Do the Work & Log
+
+As you work, log your progress. Satya automatically attaches these logs to your active task as comments.
+
+```python
+satya.log("Designing the schema...")
+# ... work ...
+satya.log("Schema verified.")
+```
+
+### Step 6: Finish the Task
+
+When done, mark it as finished. This closes the context.
+
+```python
+satya.finish_task()
 ```
 
 ### Step 5: Build the Knowledge Base
@@ -165,36 +183,28 @@ import satya.sdk as satya
 client = satya.init(agent_name="builder_agent")
 satya.log("Session started. Beginning project setup.")
 
-# === CREATE YOUR WORK ITEMS ===
-task1 = client.create_task("Setup database schema", "Create tables for users, sessions, and posts")
-task2 = client.create_task("Build REST API", "Implement CRUD endpoints for all resources")
-task3 = client.create_task("Write tests", "Unit and integration tests for API endpoints")
-satya.log(f"Created 3 tasks: {task1['id']}, {task2['id']}, {task3['id']}")
+# === CREATE BACKLOG ===
+client.create_task("Setup database schema", "Create tables for users, sessions, and posts")
+client.create_task("Build REST API", "Implement CRUD endpoints for all resources")
+satya.log("Backlog populated.")
 
-# === GATHER KNOWLEDGE FIRST ===
+# === GATHER KNOWLEDGE ===
 client.scrape_url("https://www.postgresql.org/docs/current/tutorial.html")
-satya.log("Scraped PostgreSQL tutorial for reference")
 
-# === WORK ON TASK 1 ===
-client.update_task(task1["id"], "In Progress")
-satya.log("Working on database schema...")
-# ... (your actual work happens here) ...
-client.update_task(task1["id"], "Done")
-satya.log("Database schema created successfully")
+# === EXECUTE WORK (LOOP) ===
+while True:
+    task = satya.pick_task()
+    if not task:
+        satya.log("No more tasks to do.")
+        break
 
-# === WORK ON TASK 2 ===
-client.update_task(task2["id"], "In Progress")
-satya.log("Building REST API endpoints...")
-# ... (your actual work happens here) ...
-client.update_task(task2["id"], "Done")
-satya.log("REST API endpoints complete")
+    satya.log(f"Starting task: {task['title']}")
 
-# === WORK ON TASK 3 ===
-client.update_task(task3["id"], "In Progress")
-satya.log("Writing tests...")
-# ... (your actual work happens here) ...
-client.update_task(task3["id"], "Done")
-satya.log("All tests passing")
+    # ... do work ...
+    satya.log("Making progress...")
+
+    satya.finish_task()
+    satya.log("Task complete.")
 
 # === SESSION COMPLETE ===
 satya.log("All tasks complete. Session ending.")
@@ -215,8 +225,10 @@ While you run this, the human sees:
 |---|---|---|
 | `satya.init(agent_name)` | Start a tracked session. Creates log file. | **Always call first** before any other function |
 | `satya.create_task(title, description)` | Create a task (status: "To Do"). Returns task dict with `id`. | Before starting any unit of work |
-| `satya.update_task(task_id, status)` | Change task status: `"To Do"`, `"In Progress"`, `"Done"` | When you start or finish a piece of work |
-| `satya.log(message)` | Write a timestamped log entry | Frequently — the human reads these to follow your progress |
+| `satya.update_task(task_id, status)` | Change task status: `"To Do"`, `"In Progress"`, `"Done"` | Only if manual update is needed (prefer `pick_task`) |
+| `satya.pick_task()` | **Recommended** Auto-assign highest priority task | When ready to work. Sets active context. |
+| `satya.finish_task()` | Mark active task as Done | When work is complete. |
+| `satya.log(message)` | Write log entry & comment on task | Frequently — creates history for the task |
 | `satya.scrape(url)` | Scrape URL to Markdown, save to knowledge base | When you need reference docs before starting complex work |
 | `client.flush_logs()` | Commit logs to Git (if available) | At the end of your session |
 
@@ -337,8 +349,9 @@ satya_data/                   # ALL data lives here (auto-created)
 2. **Always call `satya.init()` before anything else.** This creates your session and log file.
 3. **Create tasks before doing work.** The human expects to see tasks on the board before you start working on them.
 4. **Log frequently and descriptively.** The human cannot see your internal reasoning — your logs are how they follow what you're doing. Write logs a human can understand.
-5. **Update task status honestly.** Move to "In Progress" when starting, "Done" only when truly finished.
-6. **Set meaningful priorities.** "Critical" = blockers, "High" = important, "Medium" = normal, "Low" = nice-to-have.
+5. **Prioritize Work.** Always work on the highest priority task first. Use `satya.pick_task()` to let the system decide.
+6. **Update task status honestly.** `satya.pick_task()` sets "In Progress", `satya.finish_task()` sets "Done".
+7. **Set meaningful priorities.** "Critical" = blockers, "High" = important, "Medium" = normal, "Low" = nice-to-have.
 7. **Scrape before complex work.** If you need reference material, scrape it first. The knowledge base is shared — other agents and the human can access it.
 8. **Flush logs at session end.** Call `client.flush_logs()` before your session terminates.
 9. **Do not delete `satya_data/`.** This is the persistent store. Deleting it erases all tasks, logs, and knowledge.
