@@ -27,3 +27,15 @@ def scrape(url):
     if _client:
         return _client.scrape_url(url)
     return None
+
+def pick_task():
+    """Pick the highest priority task and start working on it."""
+    if _client:
+        return _client.pick_task()
+    return None
+
+def finish_task(status="Done"):
+    """Finish the currently active task."""
+    if _client:
+        return _client.finish_task(status)
+    return False

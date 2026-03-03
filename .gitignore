@@ -29,3 +29,6 @@ pip-delete-this-directory.txt
 env/
 venv/
 .local/
+satya_data/
+verification/
+*.log
