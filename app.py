@@ -396,11 +396,11 @@ tasks_manager, scraper_manager = get_managers()
 
 
 def get_priority_badge(priority):
-    p = (priority or "Medium").lower()
-    return f'<span class="priority-badge badge-{p}">{priority or "Medium"}</span>'
+    p = html.escape((priority or "Medium").lower())
+    return f'<span class="priority-badge badge-{p}">{html.escape(priority or "Medium")}</span>'
 
 def get_priority_class(priority):
-    return f"priority-{(priority or 'medium').lower()}"
+    return f"priority-{html.escape((priority or 'medium').lower())}"
 
 def format_date(iso_str):
     try:
@@ -560,12 +560,12 @@ if page == "Dashboard":
                 st.markdown(f"""
                 <div class="task-card {get_priority_class(priority)}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div class="task-title">{task.get('title', 'Untitled')}</div>
+                        <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
                         {get_priority_badge(priority)}
                     </div>
                     <div class="task-meta">
-                        {task.get('assignee', 'Unassigned')} &middot;
-                        {task.get('status', 'To Do')} &middot;
+                        {html.escape(task.get('assignee', 'Unassigned'))} &middot;
+                        {html.escape(task.get('status', 'To Do'))} &middot;
                         {format_time_ago(task.get('updated_at', ''))}
                     </div>
                 </div>
@@ -647,7 +647,7 @@ if page == "Dashboard":
             st.markdown(f"""
             <div style="font-size: 0.85rem; padding: 0.5rem; border-left: 3px solid var(--info); margin-bottom: 0.5rem; background: var(--bg-card); border-radius: 4px;">
                 <span style="color: var(--text-secondary); font-size: 0.75rem;">{ts}</span> &mdash;
-                <strong>{agent}</strong> <span style="color: var(--primary-light);">{action}</span> on <em>{task_title}</em>: {details}
+                <strong>{html.escape(agent)}</strong> <span style="color: var(--primary-light);">{html.escape(action)}</span> on <em>{html.escape(task_title)}</em>: {html.escape(details)}
             </div>
             """, unsafe_allow_html=True)
     else:
@@ -720,14 +720,14 @@ elif page == "Task Board":
                 st.markdown(f"""
                 <div class="task-card {get_priority_class(priority)}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div class="task-title">{task.get('title', 'Untitled')}</div>
+                        <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
                         {get_priority_badge(priority)}
                     </div>
                     <div style="font-size: 0.82rem; color: var(--text-secondary); margin: 0.3rem 0;">
-                        {task.get('description', '')[:80]}{'...' if len(task.get('description', '')) > 80 else ''}
+                        {html.escape(task.get('description', '')[:80])}{'...' if len(task.get('description', '')) > 80 else ''}
                     </div>
                     <div class="task-meta">
-                        &#128100; {task.get('assignee', 'Unassigned')} &middot;
+                        &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
                         &#128197; {format_date(task.get('created_at', ''))}
                     </div>
                 </div>
@@ -817,7 +817,7 @@ elif page == "Truth Source":
                 <div class="truth-card">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <div style="font-weight: 600; color: var(--text-primary);">&#128196; {fname}</div>
+                            <div style="font-weight: 600; color: var(--text-primary);">&#128196; {html.escape(fname)}</div>
                             <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">
                                 Size: {size_str}
                             </div>
@@ -905,7 +905,7 @@ elif page == "Agent Logs":
                 with st.container(border=True):
                     for line in lines:
                         if line.strip():
-                            st.markdown(f'<div class="log-entry">{line}</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div class="log-entry">{html.escape(line)}</div>', unsafe_allow_html=True)
         else:
             st.markdown("""
             <div class="empty-state">
