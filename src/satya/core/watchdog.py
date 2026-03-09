@@ -6,9 +6,11 @@ class WatchdogChecker:
         self.repo_path = repo_path
         self.tasks = Tasks(repo_path)
 
-    def scan(self) -> list[dict]:
+    def scan(self, tasks: list[dict] = None) -> list[dict]:
         stale_tasks = []
-        all_tasks = self.tasks.get_tasks(status=STATUS_IN_PROGRESS)
+        # If tasks are provided, use them; otherwise, fetch in_progress tasks from storage.
+        # This optimization avoids redundant disk I/O when the caller already has the task list.
+        all_tasks = tasks if tasks is not None else self.tasks.get_tasks(status=STATUS_IN_PROGRESS)
         now = datetime.now()
 
         for task in all_tasks:
