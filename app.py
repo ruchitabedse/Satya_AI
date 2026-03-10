@@ -35,7 +35,7 @@ DARK_VARS = """
     --bg-card-hover: #222240;
     --bg-sidebar: linear-gradient(180deg, #16162B 0%, #0F0F1A 100%);
     --text-primary: #EAEAF0;
-    --text-secondary: #9090A7;
+    --text-secondary: #B0B0C5;
     --border: #2D2D44;
     --input-bg: #1E1E36;
     --shadow-color: rgba(108, 92, 231, 0.15);
@@ -382,6 +382,93 @@ div[data-testid="stExpander"] {{
 .method-get {{ background: rgba(116,185,255,0.2); color: #74B9FF; }}
 .method-put {{ background: rgba(253,203,110,0.2); color: #FDCB6E; }}
 .method-delete {{ background: rgba(225,112,85,0.2); color: #E17055; }}
+
+.promo-card {{
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid var(--border);
+    cursor: pointer;
+}}
+
+.promo-card:hover {{
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px var(--shadow-color);
+    border-color: var(--primary);
+}}
+
+.promo-hero {{
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.1) 0%, rgba(162, 155, 254, 0.05) 100%);
+    border-left: 6px solid var(--primary);
+}}
+
+.promo-compact {{
+    padding: 1.2rem;
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}}
+
+.promo-mobile {{
+    padding: 1.5rem;
+    background: var(--bg-card);
+    text-align: center;
+}}
+
+.promo-tag {{
+    display: inline-block;
+    padding: 4px 12px;
+    background: var(--primary);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+}}
+
+.promo-title {{
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}}
+
+.promo-subtitle {{
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    max-width: 80%;
+}}
+
+.promo-cta {{
+    display: inline-block;
+    padding: 0.6rem 1.5rem;
+    background: var(--primary);
+    color: white !important;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}}
+
+.promo-cta:hover {{
+    background: var(--primary-dark);
+    transform: scale(1.05);
+}}
+
+.promo-icon {{
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #6C5CE7, #A29BFE);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}}
 </style>
 """
 
@@ -434,9 +521,19 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # Handle Navigation via Query Parameters
+    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
+    query_params = st.query_params
+    default_index = 0
+    if "page" in query_params:
+        target_page = query_params["page"].replace("+", " ")
+        if target_page in nav_options:
+            default_index = nav_options.index(target_page)
+
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -499,6 +596,21 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # Variant Selection for A/B Testing Demo
+    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
+    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+
+    mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
+    mobile_ctas = {"1": "Setup", "2": "Start"}
+    st.markdown(f"""
+    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
+        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
+        <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
+        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
+        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("""
     <div style="text-align: center; padding: 0.5rem;">
         <div style="font-size: 0.7rem; color: var(--text-secondary);">
@@ -508,8 +620,34 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
+def log_analytics(event_name, payload=None):
+    """Mock analytics event logging."""
+    # Simple deduplication for Streamlit reruns
+    last_event = st.session_state.get("last_analytics_event")
+    last_payload = st.session_state.get("last_analytics_payload")
+
+    if last_event == event_name and last_payload == payload:
+        return None
+
+    st.session_state.last_analytics_event = event_name
+    st.session_state.last_analytics_payload = payload
+
+    now = datetime.now().isoformat()
+    log_entry = {
+        "timestamp": now,
+        "event": event_name,
+        "payload": payload or {}
+    }
+    # For demo purposes, we'll log to a file
+    os.makedirs("satya_data/analytics", exist_ok=True)
+    with open("satya_data/analytics/events.log", "a") as f:
+        f.write(json.dumps(log_entry) + "\n")
+    return log_entry
+
+
 # ─── DASHBOARD PAGE ─────────────────────────────────────
 if page == "Dashboard":
+    log_analytics("page_view", {"page": "Dashboard"})
     st.markdown('<div class="hero-header">Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Overview of your AI agent operations and task progress</div>', unsafe_allow_html=True)
 
@@ -559,6 +697,28 @@ if page == "Dashboard":
         """, unsafe_allow_html=True)
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+
+    # Variant Selection for A/B Testing Demo
+    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
+    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+
+    hero_headlines = {
+        "A": "Command Your Mission: Meet the Main Owner",
+        "B": "Single Source of Truth, Single Point of Authority"
+    }
+    hero_ctas = {
+        "1": "Setup Main Owner",
+        "2": "Start Leading Now"
+    }
+
+    st.markdown(f"""
+    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
+        <div class="promo-tag">New Feature</div>
+        <div class="promo-title">{hero_headlines[headline_variant]}</div>
+        <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
+        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
+    </div>
+    """, unsafe_allow_html=True)
 
     col_left, col_right = st.columns([3, 2])
 
@@ -612,6 +772,19 @@ if page == "Dashboard":
                 <span style="color: var(--text-secondary);">Completion Rate</span>
                 <span style="font-weight: 700; font-size: 1.2rem; color: var(--success);">{completion}%</span>
             </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        compact_headlines = {"A": "Unlock Main Owner", "B": "Enable Priority Ownership"}
+        compact_ctas = {"1": "Get Started", "2": "Enable Now"}
+
+        st.markdown(f"""
+        <div class="promo-card promo-compact">
+            <div>
+                <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
+            </div>
+            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -926,6 +1099,64 @@ elif page == "Agent Logs":
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+
+# ─── MAIN OWNER GUIDE PAGE ─────────────────────────────
+elif page == "Main Owner Guide":
+    log_analytics("page_view", {"page": "Main Owner Guide"})
+    st.markdown('<div class="hero-header">Main Owner Guide</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent\'s mission.</div>', unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="api-section" style="border-left: 4px solid var(--primary); padding-left: 1.5rem;">
+        <h4 style="color: var(--primary-light);">The Concept</h4>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.7;">
+            The Main Owner feature designates a primary human or agent as the ultimate authority for a project.
+            It streamlines decision-making, ensures consistent goal alignment, and provides a clear point of contact for critical escalations.
+            By unifying ownership, you eliminate ambiguity in multi-agent environments, ensuring that every task and truth source aligns perfectly with your core objectives.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+
+    col_guide, col_faq = st.columns([1, 1])
+
+    with col_guide:
+        st.markdown("#### 3-Step Setup Guide")
+        st.markdown("""
+        1. **Navigate** to the 'Main Owner' section in your dashboard.
+        2. **Select** the designated agent or human from the authority list.
+        3. **Confirm** the mission parameters and activate the ownership protocol.
+        """)
+
+        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+
+        st.markdown("#### What to Expect")
+        if st.checkbox("Define the primary mission objective", key="expect_1"):
+             log_analytics("setup_checklist_complete", {"step": 1})
+        if st.checkbox("Assign the Main Owner role to a specific identity", key="expect_2"):
+             log_analytics("setup_checklist_complete", {"step": 2})
+        if st.checkbox("Review and approve the initial task backlog", key="expect_3"):
+             log_analytics("setup_checklist_complete", {"step": 3})
+        if st.checkbox("Establish communication protocols for escalations", key="expect_4"):
+             log_analytics("setup_checklist_complete", {"step": 4})
+             log_analytics("main_owner_setup_complete")
+
+    with col_faq:
+        st.markdown("#### Frequently Asked Questions")
+
+        faqs = [
+            ("What is a Main Owner?", "The Main Owner is the primary authority responsible for the final validation of tasks and the integrity of the Truth Source."),
+            ("Can I have multiple Main Owners?", "No, to ensure clear accountability, each project can only have one designated Main Owner at a time."),
+            ("How do agents interact with the Main Owner?", "Agents automatically prioritize tasks assigned or approved by the Main Owner and use their inputs as the highest-priority context."),
+            ("Can the Main Owner be changed?", "Yes, ownership can be transferred via the dashboard settings, with a full audit trail of the transition."),
+            ("Is the Main Owner required for all projects?", "While not mandatory, it is highly recommended for complex multi-agent workflows to prevent goal drift.")
+        ]
+
+        for q, a in faqs:
+            with st.expander(q):
+                st.write(a)
 
 
 # ─── SDK DOCS PAGE ─────────────────────────────────────
