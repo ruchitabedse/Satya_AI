@@ -1,5 +1,6 @@
 import os
 import subprocess
+import shlex
 from .tasks import Tasks, STATUS_DONE
 
 class CompletionCriteriaNotMet(Exception):
@@ -41,7 +42,9 @@ class CompletionChecker:
                 raise CompletionCriteriaNotMet("No test_command specified.")
 
             try:
-                result = subprocess.run(test_command, shell=True, capture_output=True, text=True)
+                # Use shlex.split and shell=False to prevent command injection
+                args = shlex.split(test_command)
+                result = subprocess.run(args, shell=False, capture_output=True, text=True)
                 if result.returncode != required_code:
                     raise CompletionCriteriaNotMet(f"Test command failed with exit code {result.returncode} (expected {required_code}).\nOutput: {result.stdout}\nError: {result.stderr}")
                 return True
