@@ -394,6 +394,7 @@ div[data-testid="stExpander"] {{
     overflow: hidden;
     position: relative;
     margin-bottom: 1.5rem;
+    text-decoration: none;
 }}
 
 .promo-card:hover {{
@@ -401,11 +402,15 @@ div[data-testid="stExpander"] {{
     box-shadow: 0 12px 24px var(--shadow-color);
 }}
 
+.promo-card:active {{
+    transform: translateY(-2px);
+}}
+
 .hero-card {{
     background: linear-gradient(135deg, #6C5CE7 0%, #5A4BD1 100%);
     padding: 2rem;
     color: white;
-    min-height: 200px;
+    min-height: 240px;
     justify-content: center;
 }}
 
@@ -462,6 +467,7 @@ div[data-testid="stExpander"] {{
     font-size: 1.1rem;
     font-weight: 700;
     margin-bottom: 0.25rem;
+    color: var(--text-primary);
 }}
 
 .compact-card .card-body {{
@@ -482,9 +488,16 @@ div[data-testid="stExpander"] {{
     justify-content: space-between;
 }}
 
+.mobile-tile .card-icon {{
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 0.5rem;
+}}
+
 .mobile-tile .card-headline {{
     font-size: 0.95rem;
     font-weight: 700;
+    color: var(--text-primary);
 }}
 
 .mobile-tile .card-cta {{
@@ -619,7 +632,7 @@ with st.sidebar:
     st.markdown("---")
 
     # Handle Navigation via Query Parameters
-    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
+    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"]
     query_params = st.query_params
     default_index = 0
     if "page" in query_params:
@@ -629,9 +642,16 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
+
+    # ─── ANALYTICS HOOK (URL-based) ─────────────────────
+    if "event" in query_params:
+        event_name = query_params["event"]
+        payload = {k: v for k, v in query_params.items() if k != "event"}
+        log_analytics(event_name, payload)
 
     st.markdown("---")
 
@@ -692,20 +712,25 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    # ─── A/B TESTING & ASSETS ───────────────────────────
+    if "ab_variant" not in st.session_state:
+        import random
+        st.session_state.ab_variant = random.choice(["A", "B"])
 
-    mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
-    mobile_ctas = {"1": "Setup", "2": "Start"}
-    st.markdown(f"""
-    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
-        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
-        <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
-        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
-    </div>
-    """, unsafe_allow_html=True)
+    ab_variant = st.session_state.ab_variant
+
+    OWNER_ICON_SVG = """
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="32" cy="32" r="32" fill="#6C5CE7" fill-opacity="0.1"/>
+      <path d="M32 12C24.268 12 18 18.268 18 26C18 33.732 24.268 40 32 40C39.732 40 46 33.732 46 26C46 18.268 39.732 12 32 12ZM32 16C37.523 16 42 20.477 42 26C42 31.523 37.523 36 32 36C26.477 36 22 31.523 22 26C22 20.477 26.477 16 32 16ZM32 42C23.163 42 16 49.163 16 58H48C48 49.163 40.837 42 32 42Z" fill="#6C5CE7"/>
+      <path d="M32 32L36 36L44 28" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    """
+
+    mobile_headlines = {"A": "Main Owner Setup", "B": "Control Center"}
+    mobile_ctas = {"A": "Start", "B": "Unlock"}
+
+    st.markdown(f'<a href="/?page=Main+Owner&event=main_owner_promo_click&card_size=mobile_tile&variant={ab_variant}" target="_self" class="promo-card mobile-tile" style="margin: 0.5rem; text-decoration: none;"><div class="card-icon">{OWNER_ICON_SVG}</div><div class="card-headline">{mobile_headlines[ab_variant]}</div><div class="card-cta">{mobile_ctas[ab_variant]}</div></a>', unsafe_allow_html=True)
 
     st.markdown("""
     <div style="text-align: center; padding: 0.5rem;">
@@ -743,20 +768,15 @@ def log_analytics(event_name, payload=None):
 
 # ─── DASHBOARD PAGE ─────────────────────────────────────
 if page == "Dashboard":
-    log_analytics("page_view", {"page": "Dashboard"})
+    log_analytics("page_view", {"page": "Dashboard", "ab_variant": ab_variant})
     st.markdown('<div class="hero-header">Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Overview of your AI agent operations and task progress</div>', unsafe_allow_html=True)
 
     # Main Owner Promo Hero Card
-    st.markdown("""
-    <div class="promo-card hero-card">
-        <div class="card-headline">Master Your AI Fleet</div>
-        <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
-        <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    hero_headlines = {"A": "Master Your AI Fleet", "B": "Unified Control Starts Here"}
+    hero_ctas = {"A": "Set Main Owner", "B": "Start Onboarding"}
+
+    st.markdown(f'<a href="/?page=Main+Owner&event=main_owner_promo_click&card_size=hero&variant={ab_variant}" target="_self" class="promo-card hero-card" style="text-decoration: none;"><div class="card-headline">{hero_headlines[ab_variant]}</div><div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div><div><span class="card-cta">{hero_ctas[ab_variant]}</span></div></a>', unsafe_allow_html=True)
 
     from satya.core import get_stale_tasks
     # ⚡ Bolt Optimization:
@@ -808,27 +828,6 @@ if page == "Dashboard":
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
-
-    hero_headlines = {
-        "A": "Command Your Mission: Meet the Main Owner",
-        "B": "Single Source of Truth, Single Point of Authority"
-    }
-    hero_ctas = {
-        "1": "Setup Main Owner",
-        "2": "Start Leading Now"
-    }
-
-    st.markdown(f"""
-    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
-        <div class="promo-tag">New Feature</div>
-        <div class="promo-title">{hero_headlines[headline_variant]}</div>
-        <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
-    </div>
-    """, unsafe_allow_html=True)
 
     col_left, col_right = st.columns([3, 2])
 
@@ -885,18 +884,10 @@ if page == "Dashboard":
         </div>
         """, unsafe_allow_html=True)
 
-        compact_headlines = {"A": "Unlock Main Owner", "B": "Enable Priority Ownership"}
-        compact_ctas = {"1": "Get Started", "2": "Enable Now"}
+        compact_headlines = {"A": "Secure Your Workspace", "B": "Enable Owner Oversight"}
+        compact_ctas = {"A": "Setup Now", "B": "View Guide"}
 
-        st.markdown(f"""
-        <div class="promo-card promo-compact">
-            <div>
-                <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
-            </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<a href="/?page=Main+Owner&event=main_owner_promo_click&card_size=compact&variant={ab_variant}" target="_self" class="promo-card compact-card" style="text-decoration: none;"><div class="card-icon">{OWNER_ICON_SVG}</div><div class="card-content" style="flex-grow: 1;"><div class="card-headline">{compact_headlines[ab_variant]}</div><div class="card-body">Establish mission authority</div></div><div class="card-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[ab_variant]}</div></a>', unsafe_allow_html=True)
 
         if stats["total"] > 0:
             st.markdown("#### Task Distribution")
@@ -1215,22 +1206,24 @@ elif page == "Agent Logs":
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
 elif page == "Main Owner":
+    log_analytics("page_view", {"page": "Main Owner Onboarding", "ab_variant": ab_variant})
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
     st.markdown("""
-    <div class="api-section">
-        <h4 style="color: var(--primary-light);">Feature Summary</h4>
+    <div class="api-section" style="border-left: 4px solid var(--primary); padding-left: 1.5rem; margin-bottom: 2rem;">
+        <h4 style="color: var(--primary-light); margin-bottom: 0.5rem;">Take Command of Your AI Workforce</h4>
+        <p style="color: var(--text-primary); font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;">
+            Designate a Main Owner for unified oversight, master permissions, and central governance.
+        </p>
         <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7;">
             The Main Owner feature empowers you to take full control of your Satya environment. By designating a primary administrator,
             you gain a single source of truth for agent sessions, knowledge bases, and compliance rules. This centralized role
             streamlines multi-agent coordination, ensures consistent governance across all tasks, and provides the ultimate fallback
-            for session management.
+            for session management, making it essential for scaling your AI operations securely and efficiently.
         </p>
     </div>
     """, unsafe_allow_html=True)
-
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     st.markdown("#### 3-Step Setup Guide")
     col_s1, col_s2, col_s3 = st.columns(3)
@@ -1259,6 +1252,10 @@ elif page == "Main Owner":
         </div>
         """, unsafe_allow_html=True)
 
+    if st.button("Finalize Setup", key="finalize_setup_btn", use_container_width=True):
+        log_analytics("main_owner_setup_complete", {"source": "onboarding_page"})
+        st.success("Main Owner identity locked and centralized oversight enabled.")
+
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     col_faq, col_spec = st.columns([3, 2])
@@ -1266,11 +1263,11 @@ elif page == "Main Owner":
     with col_faq:
         st.markdown("#### Frequently Asked Questions")
         faqs = [
-            ("What is a Main Owner?", "The Main Owner is the primary human administrator who holds master permissions over all AI agent sessions, truth sources, and governance rules."),
-            ("Can there be more than one Main Owner?", "No, Satya enforces a single-owner model for absolute accountability."),
-            ("What happens if the Main Owner is unavailable?", "We recommend storing credentials in a secure vault. Ownership can be transferred through a verified recovery process."),
-            ("Does this affect agent performance?", "No, it is a governance layer. Agents continue to operate autonomously but with clearer boundaries."),
-            ("Is the setup reversible?", "Yes, but it requires high-level confirmation and an audit trail entry to ensure security.")
+            ("What is a Main Owner?", "The Main Owner is the primary human administrator who holds master permissions over all AI agent sessions, truth sources, and governance rules within a Satya workspace."),
+            ("Can there be more than one Main Owner?", "No, Satya enforces a single-owner model for absolute accountability, but the Main Owner can delegate specific tasks to other human observers."),
+            ("What happens if the Main Owner is unavailable?", "We recommend storing the Main Owner's credentials in a secure, shared vault. In enterprise setups, ownership can be transferred through a verified recovery process."),
+            ("Does the Main Owner feature affect agent performance?", "No, it is a governance and oversight layer. Your agents will continue to operate autonomously, but with clearer boundaries and centralized logging."),
+            ("Is the setup reversible?", "Yes, but it requires a high-level confirmation and an audit trail entry to ensure the security and integrity of your tracked AI operations.")
         ]
         for q, a in faqs:
             with st.expander(q):
@@ -1280,10 +1277,10 @@ elif page == "Main Owner":
         st.markdown("#### What to Expect")
         checklist = [
             "Centralized dashboard for all agent activity.",
-            "Master control over Truth Source additions.",
-            "Enforced governance rules across all agents.",
-            "Unified audit trail for every status change.",
-            "Priority support for owner interventions."
+            "Master control over Truth Source (knowledge base) additions.",
+            "Enforced governance rules across all connected agents.",
+            "Unified audit trail for every status change and task update.",
+            "Priority support for owner-initiated session interventions."
         ]
         for item in checklist:
             st.markdown(f"&check; {item}")
