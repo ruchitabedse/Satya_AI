@@ -1,56 +1,51 @@
-# Main Owner Copy Draft
+# Main Owner Feature: Onboarding & Promotional Copy
 
-## One-liner Value Prop
-Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.
+## 1. Value Proposition
+**One-liner:** Take command of your AI workforce: Designate a Main Owner for unified oversight, master permissions, and central governance.
 
-## Summary (40-70 words)
-The Main Owner feature designates a primary human or agent as the ultimate authority for a project. It streamlines decision-making, ensures consistent goal alignment, and provides a clear point of contact for critical escalations. By unifying ownership, you eliminate ambiguity in multi-agent environments, ensuring that every task and truth source aligns perfectly with your core objectives.
+## 2. Feature Summary (40–70 words)
+The Main Owner feature empowers you to take full control of your Satya environment. By designating a primary administrator, you gain a single source of truth for agent sessions, knowledge bases, and compliance rules. This centralized role streamlines multi-agent coordination, ensures consistent governance across all tasks, and provides the ultimate fallback for session management, making it essential for scaling your AI operations securely and efficiently.
 
-## 3-Step Setup Guide
-1. Navigate to the 'Main Owner' section in your dashboard.
-2. Select the designated agent or human from the authority list.
-3. Confirm the mission parameters and activate the ownership protocol.
+## 3. 3-Step Setup Guide
+1. **Access Settings:** Navigate to the 'Governance' tab in your Satya dashboard and locate the 'Owner Management' section.
+2. **Designate Identity:** Enter the unique ID or email of the primary human administrator to be assigned as the Main Owner.
+3. **Confirm & Lock:** Review the master permissions and click 'Finalize Setup' to lock the Main Owner identity and enable centralized oversight.
 
-## FAQ (Top 5 Questions)
+## 4. FAQ (Top 5 Questions)
 1. **What is a Main Owner?**
-   The Main Owner is the primary authority responsible for the final validation of tasks and the integrity of the Truth Source.
-2. **Can I have multiple Main Owners?**
-   No, to ensure clear accountability, each project can only have one designated Main Owner at a time.
-3. **How do agents interact with the Main Owner?**
-   Agents automatically prioritize tasks assigned or approved by the Main Owner and use their inputs as the highest-priority context.
-4. **Can the Main Owner be changed?**
-   Yes, ownership can be transferred via the dashboard settings, with a full audit trail of the transition.
-5. **Is the Main Owner required for all projects?**
-   While not mandatory, it is highly recommended for complex multi-agent workflows to prevent goal drift.
+   - The Main Owner is the primary human administrator who holds master permissions over all AI agent sessions, truth sources, and governance rules within a Satya workspace.
+2. **Can there be more than one Main Owner?**
+   - No, Satya enforces a single-owner model for absolute accountability, but the Main Owner can delegate specific tasks to other human observers.
+3. **What happens if the Main Owner is unavailable?**
+   - We recommend storing the Main Owner's credentials in a secure, shared vault. In enterprise setups, ownership can be transferred through a verified recovery process.
+4. **Does the Main Owner feature affect agent performance?**
+   - No, it is a governance and oversight layer. Your agents will continue to operate autonomously, but with clearer boundaries and centralized logging.
+5. **Is the Main Owner setup reversible?**
+   - Yes, but it requires a high-level confirmation and an audit trail entry to ensure the security and integrity of your tracked AI operations.
 
-## "What to Expect" Checklist
-- [ ] Define the primary mission objective.
-- [ ] Assign the Main Owner role to a specific identity.
-- [ ] Review and approve the initial task backlog.
-- [ ] Establish communication protocols for escalations.
+## 5. "What to Expect" Checklist
+- [ ] Centralized dashboard for all agent activity.
+- [ ] Master control over Truth Source (knowledge base) additions.
+- [ ] Enforced governance rules across all connected agents.
+- [ ] Unified audit trail for every status change and task update.
+- [ ] Priority support for owner-initiated session interventions.
 
-## A/B Test Variants
+## 6. A/B Test Variants
 
-### Large Hero
-- **Headline Variants:**
-  - Variant A: "Command Your Mission: Meet the Main Owner"
-  - Variant B: "Single Source of Truth, Single Point of Authority"
-- **CTA Variants:**
-  - Variant 1: "Setup Main Owner"
-  - Variant 2: "Start Leading Now"
+### Hero Card
+- **Headline A:** Master Your AI Fleet
+- **Headline B:** Unified Control Starts Here
+- **CTA A:** Set Main Owner
+- **CTA B:** Start Onboarding
 
 ### Compact Card
-- **Headline Variants:**
-  - Variant A: "Unlock Main Owner"
-  - Variant B: "Enable Priority Ownership"
-- **CTA Variants:**
-  - Variant 1: "Get Started"
-  - Variant 2: "Enable Now"
+- **Headline A:** Secure Your Workspace
+- **Headline B:** Enable Owner Oversight
+- **CTA A:** Setup Now
+- **CTA B:** View Guide
 
 ### Mobile Tile
-- **Headline Variants:**
-  - Variant A: "Main Owner"
-  - Variant B: "Lead Mission"
-- **CTA Variants:**
-  - Variant 1: "Setup"
-  - Variant 2: "Start"
+- **Headline A:** Main Owner Setup
+- **Headline B:** Control Center
+- **CTA A:** Start
+- **CTA B:** Unlock

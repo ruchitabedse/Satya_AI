@@ -3,7 +3,7 @@ import os
 import sys
 import json
 import html
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -161,10 +161,10 @@ section[data-testid="stSidebar"] [data-testid="stMarkdown"] {{
     box-shadow: 0 4px 20px var(--shadow-color);
 }}
 
-.task-card.priority-critical {{ border-left-color: #E17055; }}
-.task-card.priority-high {{ border-left-color: #FDCB6E; }}
-.task-card.priority-medium {{ border-left-color: #74B9FF; }}
-.task-card.priority-low {{ border-left-color: #00B894; }}
+.task-card.priority-critical {{ border-left-color: var(--danger); }}
+.task-card.priority-high {{ border-left-color: var(--warning); }}
+.task-card.priority-medium {{ border-left-color: var(--info); }}
+.task-card.priority-low {{ border-left-color: var(--success); }}
 
 .task-title {{
     font-weight: 600;
@@ -188,10 +188,10 @@ section[data-testid="stSidebar"] [data-testid="stMarkdown"] {{
     letter-spacing: 0.5px;
 }}
 
-.badge-critical {{ background: rgba(225,112,85,0.2); color: #E17055; }}
-.badge-high {{ background: rgba(253,203,110,0.2); color: #FDCB6E; }}
-.badge-medium {{ background: rgba(116,185,255,0.2); color: #74B9FF; }}
-.badge-low {{ background: rgba(0,184,148,0.2); color: #00B894; }}
+.badge-critical {{ background: rgba(225,112,85,0.15); color: var(--danger); }}
+.badge-high {{ background: rgba(253,203,110,0.15); color: var(--warning); }}
+.badge-medium {{ background: rgba(116,185,255,0.15); color: var(--info); }}
+.badge-low {{ background: rgba(0,184,148,0.15); color: var(--success); }}
 
 .column-header {{
     padding: 0.6rem 1rem;
@@ -383,91 +383,146 @@ div[data-testid="stExpander"] {{
 .method-put {{ background: rgba(253,203,110,0.2); color: #FDCB6E; }}
 .method-delete {{ background: rgba(225,112,85,0.2); color: #E17055; }}
 
+/* Promo & Main Owner Styles */
 .promo-card {{
     border-radius: 16px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-    position: relative;
-    overflow: hidden;
     transition: all 0.3s ease;
-    border: 1px solid var(--border);
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 1.5rem;
 }}
 
 .promo-card:hover {{
-    transform: translateY(-5px);
-    box-shadow: 0 12px 40px var(--shadow-color);
-    border-color: var(--primary);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px var(--shadow-color);
 }}
 
-.promo-hero {{
-    background: linear-gradient(135deg, rgba(108, 92, 231, 0.1) 0%, rgba(162, 155, 254, 0.05) 100%);
-    border-left: 6px solid var(--primary);
+.hero-card {{
+    background: linear-gradient(135deg, #6C5CE7 0%, #5A4BD1 100%);
+    padding: 2rem;
+    color: white;
+    min-height: 200px;
+    justify-content: center;
 }}
 
-.promo-compact {{
-    padding: 1.2rem;
+.hero-card .card-headline {{
+    font-size: 1.75rem;
+    font-weight: 800;
+    margin-bottom: 0.75rem;
+    color: white !important;
+}}
+
+.hero-card .card-body {{
+    font-size: 1rem;
+    opacity: 0.9;
+    margin-bottom: 1.5rem;
+    max-width: 80%;
+    color: white !important;
+}}
+
+.card-cta {{
+    display: inline-block;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-align: center;
+    text-decoration: none;
+    transition: background 0.2s;
+}}
+
+.hero-card .card-cta {{
+    background: white;
+    color: #6C5CE7 !important;
+}}
+
+.hero-card .card-cta:hover {{
+    background: #F0F0F8;
+}}
+
+.compact-card {{
     background: var(--bg-card);
-    display: flex;
+    padding: 1.25rem;
+    flex-direction: row;
     align-items: center;
+    gap: 1rem;
+}}
+
+.compact-card .card-icon {{
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}}
+
+.compact-card .card-headline {{
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}}
+
+.compact-card .card-body {{
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}}
+
+.compact-card .card-cta {{
+    background: var(--primary);
+    color: white !important;
+}}
+
+.mobile-tile {{
+    background: var(--bg-card);
+    padding: 1rem;
+    text-align: center;
+    aspect-ratio: 1 / 1;
     justify-content: space-between;
 }}
 
-.promo-mobile {{
-    padding: 1.5rem;
-    background: var(--bg-card);
-    text-align: center;
-}}
-
-.promo-tag {{
-    display: inline-block;
-    padding: 4px 12px;
-    background: var(--primary);
-    color: white;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    margin-bottom: 1rem;
-}}
-
-.promo-title {{
-    font-size: 1.5rem;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
-    color: var(--text-primary);
-}}
-
-.promo-subtitle {{
+.mobile-tile .card-headline {{
     font-size: 0.95rem;
-    color: var(--text-secondary);
-    margin-bottom: 1.5rem;
-    max-width: 80%;
+    font-weight: 700;
 }}
 
-.promo-cta {{
-    display: inline-block;
-    padding: 0.6rem 1.5rem;
+.mobile-tile .card-cta {{
     background: var(--primary);
     color: white !important;
-    border-radius: 8px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.2s ease;
 }}
 
-.promo-cta:hover {{
-    background: var(--primary-dark);
-    transform: scale(1.05);
-}}
-
-.promo-icon {{
-    font-size: 3rem;
+.step-card {{
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
     margin-bottom: 1rem;
-    background: linear-gradient(135deg, #6C5CE7, #A29BFE);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+}}
+
+.step-number {{
+    width: 24px;
+    height: 24px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}}
+
+.step-title {{
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}}
+
+.step-desc {{
+    font-size: 0.9rem;
+    color: var(--text-secondary);
 }}
 </style>
 """
@@ -489,17 +544,41 @@ def get_priority_badge(priority):
 def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
 
-def format_date(iso_str):
+def parse_iso(iso_str):
+    """Robust ISO parser that handles Z and ensures timezone awareness."""
+    if not iso_str:
+        return None
     try:
-        dt = datetime.fromisoformat(iso_str)
-        return dt.strftime("%b %d, %Y")
+        # Handle cases like '2023-10-27T10:00:00+00:00Z'
+        if iso_str.endswith('Z'):
+            clean_iso = iso_str.replace('Z', '+00:00')
+        else:
+            clean_iso = iso_str
+
+        dt = datetime.fromisoformat(clean_iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except:
-        return iso_str or "N/A"
+        return html.escape(str(iso_str or "N/A"))
 
 def format_time_ago(iso_str):
     try:
-        dt = datetime.fromisoformat(iso_str)
-        diff = datetime.now() - dt
+        # Handle 'Z' suffix and possible double offset in Python 3.11+
+        clean_iso = iso_str
+        if clean_iso.endswith('Z'):
+            clean_iso = clean_iso[:-1]
+            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
+                clean_iso += '+00:00'
+
+        dt = datetime.fromisoformat(clean_iso)
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        diff = datetime.now(timezone.utc) - dt
+        if diff.total_seconds() < 0:
+            return "Just now"
         if diff.days > 0:
             return f"{diff.days}d ago"
         hours = diff.seconds // 3600
@@ -508,7 +587,25 @@ def format_time_ago(iso_str):
         minutes = diff.seconds // 60
         return f"{minutes}m ago" if minutes > 0 else "Just now"
     except:
-        return ""
+        return html.escape(str(iso_str or ""))
+
+    now = datetime.now(timezone.utc)
+    diff = now - dt
+    seconds = int(diff.total_seconds())
+
+    if seconds < 0:
+        return "Just now"
+    if seconds < 60:
+        return f"{seconds}s ago"
+    if seconds < 3600:
+        return f"{seconds // 60}m ago"
+    if seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    if diff.days < 30:
+        return f"{diff.days}d ago"
+    if diff.days < 365:
+        return f"{diff.days // 30}mo ago"
+    return f"{diff.days // 365}y ago"
 
 
 with st.sidebar:
@@ -532,8 +629,7 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        nav_options,
-        index=default_index,
+        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
         label_visibility="collapsed"
     )
 
@@ -651,8 +747,22 @@ if page == "Dashboard":
     st.markdown('<div class="hero-header">Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Overview of your AI agent operations and task progress</div>', unsafe_allow_html=True)
 
+    # Main Owner Promo Hero Card
+    st.markdown("""
+    <div class="promo-card hero-card">
+        <div class="card-headline">Master Your AI Fleet</div>
+        <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
+        <div>
+            <a href="#" class="card-cta">Start Onboarding</a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     from satya.core import get_stale_tasks
-    stale = get_stale_tasks()
+    # ⚡ Bolt Optimization:
+    # We already fetched all_tasks via tasks_manager.list_all().
+    # Passing them here prevents N+1 file reads, drastically speeding up the render.
+    stale = get_stale_tasks(all_tasks)
     if stale:
         st.warning(f"⚠️ {len(stale)} stale task(s) detected — agent may be stuck")
         for t in stale:
@@ -910,6 +1020,7 @@ elif page == "Task Board":
                         {html.escape(task.get('description', '')[:80])}{'...' if len(task.get('description', '')) > 80 else ''}
                     </div>
                     <div class="task-meta">
+                        <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
                         &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
                         &#128197; {format_date(task.get('created_at', ''))}
                     </div>
@@ -919,32 +1030,27 @@ elif page == "Task Board":
                 btn_cols = st.columns(3)
 
                 if status == "queued":
-                    if btn_cols[1].button("Start", key=f"start_{task['id']}", use_container_width=True):
+                    if btn_cols[1].button("Start", key=f"start_{task['id']}", use_container_width=True, help="Move task to In Progress"):
                         tasks_manager.update_task_status(task['id'], "in_progress")
                         st.rerun()
-                    if btn_cols[2].button("Delete", key=f"del_todo_{task['id']}", use_container_width=True):
+                    if btn_cols[2].button("Delete", key=f"del_todo_{task['id']}", use_container_width=True, help="Permanently delete this task"):
                         tasks_manager.delete_task(task['id'])
                         st.rerun()
 
                 elif status == "in_progress":
                     # Cannot move back to queued legally in the data model
-                    if btn_cols[1].button("Done", key=f"done_{task['id']}", use_container_width=True):
+                    if btn_cols[1].button("Done", key=f"done_{task['id']}", use_container_width=True, help="Mark task as Completed"):
                         try:
                             tasks_manager.update_task_status(task['id'], "done")
                             st.rerun()
                         except Exception as e:
                             st.error(str(e))
-                    if btn_cols[2].button("Delete", key=f"del_prog_{task['id']}", use_container_width=True):
+                    if btn_cols[2].button("Delete", key=f"del_prog_{task['id']}", use_container_width=True, help="Permanently delete this task"):
                         tasks_manager.delete_task(task['id'])
                         st.rerun()
 
                 elif status == "done":
-                    if btn_cols[0].button("Reopen", key=f"reopen_{task['id']}", use_container_width=True):
-                        # Moving from done back to in_progress is invalid based on task transitions,
-                        # so let's handle this gracefully or remove the option.
-                        st.warning("Cannot reopen done tasks.")
-                        st.rerun()
-                    if btn_cols[2].button("Delete", key=f"del_done_{task['id']}", use_container_width=True):
+                    if btn_cols[2].button("Delete", key=f"del_done_{task['id']}", use_container_width=True, help="Permanently delete this task"):
                         tasks_manager.delete_task(task['id'])
                         st.rerun()
 
@@ -952,8 +1058,11 @@ elif page == "Task Board":
                     comments = task.get("comments", [])
                     if comments:
                         for c in reversed(comments):
-                            ts_obj = datetime.fromisoformat(c.get("timestamp", ""))
-                            ts_str = ts_obj.strftime("%H:%M:%S")
+                            try:
+                                ts_obj = datetime.fromisoformat(c.get("timestamp", ""))
+                                ts_str = ts_obj.strftime("%H:%M:%S")
+                            except ValueError:
+                                ts_str = html.escape(str(c.get("timestamp", "")))
                             txt = html.escape(c.get("text", ""))
                             st.markdown(f"<div style='font-size: 0.8rem; margin-bottom: 0.4rem; border-left: 2px solid var(--border); padding-left: 0.5rem;'><span style='color: var(--text-secondary);'>{ts_str}</span> {txt}</div>", unsafe_allow_html=True)
                     else:
@@ -990,7 +1099,8 @@ elif page == "Truth Source":
         st.markdown(f"#### Knowledge Base ({len(files)} sources)")
 
         for idx, fname in enumerate(files):
-            file_path = os.path.join(storage.TRUTH_DIR, fname)
+            safe_fname = os.path.basename(fname)
+            file_path = os.path.join(storage.TRUTH_DIR, safe_fname)
             file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
             size_str = f"{file_size / 1024:.1f} KB" if file_size > 1024 else f"{file_size} B"
 
@@ -1018,7 +1128,8 @@ elif page == "Truth Source":
 
         selected_file = st.selectbox("View Source Content", files, label_visibility="collapsed", placeholder="Select a file to preview...")
         if selected_file:
-            file_path = os.path.join(storage.TRUTH_DIR, selected_file)
+            safe_selected_file = os.path.basename(selected_file)
+            file_path = os.path.join(storage.TRUTH_DIR, safe_selected_file)
             if os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
@@ -1067,7 +1178,8 @@ elif page == "Agent Logs":
                     st.rerun()
 
             if selected_log:
-                log_path = os.path.join(storage.AGENTS_DIR, selected_log)
+                safe_selected_log = os.path.basename(selected_log)
+                log_path = os.path.join(storage.AGENTS_DIR, safe_selected_log)
 
                 mod_time = datetime.fromtimestamp(os.path.getmtime(log_path))
                 file_size = os.path.getsize(log_path)
@@ -1101,62 +1213,99 @@ elif page == "Agent Logs":
             """, unsafe_allow_html=True)
 
 
-# ─── MAIN OWNER GUIDE PAGE ─────────────────────────────
-elif page == "Main Owner Guide":
-    log_analytics("page_view", {"page": "Main Owner Guide"})
-    st.markdown('<div class="hero-header">Main Owner Guide</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent\'s mission.</div>', unsafe_allow_html=True)
+# ─── MAIN OWNER PAGE ─────────────────────────────────────
+elif page == "Main Owner":
+    st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class="api-section" style="border-left: 4px solid var(--primary); padding-left: 1.5rem;">
-        <h4 style="color: var(--primary-light);">The Concept</h4>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.7;">
-            The Main Owner feature designates a primary human or agent as the ultimate authority for a project.
-            It streamlines decision-making, ensures consistent goal alignment, and provides a clear point of contact for critical escalations.
-            By unifying ownership, you eliminate ambiguity in multi-agent environments, ensuring that every task and truth source aligns perfectly with your core objectives.
+    st.markdown("""
+    <div class="api-section">
+        <h4 style="color: var(--primary-light);">Feature Summary</h4>
+        <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7;">
+            The Main Owner feature empowers you to take full control of your Satya environment. By designating a primary administrator,
+            you gain a single source of truth for agent sessions, knowledge bases, and compliance rules. This centralized role
+            streamlines multi-agent coordination, ensures consistent governance across all tasks, and provides the ultimate fallback
+            for session management.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-    col_guide, col_faq = st.columns([1, 1])
-
-    with col_guide:
-        st.markdown("#### 3-Step Setup Guide")
+    st.markdown("#### 3-Step Setup Guide")
+    col_s1, col_s2, col_s3 = st.columns(3)
+    with col_s1:
         st.markdown("""
-        1. **Navigate** to the 'Main Owner' section in your dashboard.
-        2. **Select** the designated agent or human from the authority list.
-        3. **Confirm** the mission parameters and activate the ownership protocol.
-        """)
+        <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-title">Access Settings</div>
+            <div class="step-desc">Navigate to the 'Governance' tab in your Satya dashboard and locate the 'Owner Management' section.</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_s2:
+        st.markdown("""
+        <div class="step-card">
+            <div class="step-number">2</div>
+            <div class="step-title">Designate Identity</div>
+            <div class="step-desc">Enter the unique ID or email of the primary human administrator to be assigned as the Main Owner.</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_s3:
+        st.markdown("""
+        <div class="step-card">
+            <div class="step-number">3</div>
+            <div class="step-title">Confirm & Lock</div>
+            <div class="step-desc">Review the master permissions and click 'Finalize Setup' to lock the identity and enable oversight.</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-        st.markdown("#### What to Expect")
-        if st.checkbox("Define the primary mission objective", key="expect_1"):
-             log_analytics("setup_checklist_complete", {"step": 1})
-        if st.checkbox("Assign the Main Owner role to a specific identity", key="expect_2"):
-             log_analytics("setup_checklist_complete", {"step": 2})
-        if st.checkbox("Review and approve the initial task backlog", key="expect_3"):
-             log_analytics("setup_checklist_complete", {"step": 3})
-        if st.checkbox("Establish communication protocols for escalations", key="expect_4"):
-             log_analytics("setup_checklist_complete", {"step": 4})
-             log_analytics("main_owner_setup_complete")
+    col_faq, col_spec = st.columns([3, 2])
 
     with col_faq:
         st.markdown("#### Frequently Asked Questions")
-
         faqs = [
-            ("What is a Main Owner?", "The Main Owner is the primary authority responsible for the final validation of tasks and the integrity of the Truth Source."),
-            ("Can I have multiple Main Owners?", "No, to ensure clear accountability, each project can only have one designated Main Owner at a time."),
-            ("How do agents interact with the Main Owner?", "Agents automatically prioritize tasks assigned or approved by the Main Owner and use their inputs as the highest-priority context."),
-            ("Can the Main Owner be changed?", "Yes, ownership can be transferred via the dashboard settings, with a full audit trail of the transition."),
-            ("Is the Main Owner required for all projects?", "While not mandatory, it is highly recommended for complex multi-agent workflows to prevent goal drift.")
+            ("What is a Main Owner?", "The Main Owner is the primary human administrator who holds master permissions over all AI agent sessions, truth sources, and governance rules."),
+            ("Can there be more than one Main Owner?", "No, Satya enforces a single-owner model for absolute accountability."),
+            ("What happens if the Main Owner is unavailable?", "We recommend storing credentials in a secure vault. Ownership can be transferred through a verified recovery process."),
+            ("Does this affect agent performance?", "No, it is a governance layer. Agents continue to operate autonomously but with clearer boundaries."),
+            ("Is the setup reversible?", "Yes, but it requires high-level confirmation and an audit trail entry to ensure security.")
         ]
-
         for q, a in faqs:
             with st.expander(q):
                 st.write(a)
+
+    with col_spec:
+        st.markdown("#### What to Expect")
+        checklist = [
+            "Centralized dashboard for all agent activity.",
+            "Master control over Truth Source additions.",
+            "Enforced governance rules across all agents.",
+            "Unified audit trail for every status change.",
+            "Priority support for owner interventions."
+        ]
+        for item in checklist:
+            st.markdown(f"&check; {item}")
+
+        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+        st.markdown("#### Developer Spec")
+        st.markdown("""
+        <div class="code-block" style="font-size: 0.75rem;">
+// Analytics Events
+- main_owner_setup_start
+- main_owner_setup_complete
+
+// Sample Payload
+{
+  "event": "main_owner_setup_start",
+  "properties": {
+    "source": "onboarding_page",
+    "timestamp": "2026-02-07T..."
+  }
+}
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # ─── SDK DOCS PAGE ─────────────────────────────────────
