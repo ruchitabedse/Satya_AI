@@ -3,7 +3,7 @@ import os
 import sys
 import json
 import html
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -407,12 +407,25 @@ def format_date(iso_str):
         dt = datetime.fromisoformat(iso_str)
         return dt.strftime("%b %d, %Y")
     except:
-        return iso_str or "N/A"
+        return html.escape(str(iso_str or "N/A"))
 
 def format_time_ago(iso_str):
     try:
-        dt = datetime.fromisoformat(iso_str)
-        diff = datetime.now() - dt
+        # Handle 'Z' suffix and possible double offset in Python 3.11+
+        clean_iso = iso_str
+        if clean_iso.endswith('Z'):
+            clean_iso = clean_iso[:-1]
+            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
+                clean_iso += '+00:00'
+
+        dt = datetime.fromisoformat(clean_iso)
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        diff = datetime.now(timezone.utc) - dt
+        if diff.total_seconds() < 0:
+            return "Just now"
         if diff.days > 0:
             return f"{diff.days}d ago"
         hours = diff.seconds // 3600
@@ -421,7 +434,7 @@ def format_time_ago(iso_str):
         minutes = diff.seconds // 60
         return f"{minutes}m ago" if minutes > 0 else "Just now"
     except:
-        return ""
+        return html.escape(str(iso_str or ""))
 
 
 with st.sidebar:
@@ -514,7 +527,10 @@ if page == "Dashboard":
     st.markdown('<div class="page-subtitle">Overview of your AI agent operations and task progress</div>', unsafe_allow_html=True)
 
     from satya.core import get_stale_tasks
-    stale = get_stale_tasks()
+    # ⚡ Bolt Optimization:
+    # We already fetched all_tasks via tasks_manager.list_all().
+    # Passing them here prevents N+1 file reads, drastically speeding up the render.
+    stale = get_stale_tasks(all_tasks)
     if stale:
         st.warning(f"⚠️ {len(stale)} stale task(s) detected — agent may be stuck")
         for t in stale:
@@ -779,8 +795,11 @@ elif page == "Task Board":
                     comments = task.get("comments", [])
                     if comments:
                         for c in reversed(comments):
-                            ts_obj = datetime.fromisoformat(c.get("timestamp", ""))
-                            ts_str = ts_obj.strftime("%H:%M:%S")
+                            try:
+                                ts_obj = datetime.fromisoformat(c.get("timestamp", ""))
+                                ts_str = ts_obj.strftime("%H:%M:%S")
+                            except ValueError:
+                                ts_str = html.escape(str(c.get("timestamp", "")))
                             txt = html.escape(c.get("text", ""))
                             st.markdown(f"<div style='font-size: 0.8rem; margin-bottom: 0.4rem; border-left: 2px solid var(--border); padding-left: 0.5rem;'><span style='color: var(--text-secondary);'>{ts_str}</span> {txt}</div>", unsafe_allow_html=True)
                     else:
@@ -817,7 +836,8 @@ elif page == "Truth Source":
         st.markdown(f"#### Knowledge Base ({len(files)} sources)")
 
         for idx, fname in enumerate(files):
-            file_path = os.path.join(storage.TRUTH_DIR, fname)
+            safe_fname = os.path.basename(fname)
+            file_path = os.path.join(storage.TRUTH_DIR, safe_fname)
             file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
             size_str = f"{file_size / 1024:.1f} KB" if file_size > 1024 else f"{file_size} B"
 
@@ -845,7 +865,8 @@ elif page == "Truth Source":
 
         selected_file = st.selectbox("View Source Content", files, label_visibility="collapsed", placeholder="Select a file to preview...")
         if selected_file:
-            file_path = os.path.join(storage.TRUTH_DIR, selected_file)
+            safe_selected_file = os.path.basename(selected_file)
+            file_path = os.path.join(storage.TRUTH_DIR, safe_selected_file)
             if os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
@@ -894,7 +915,8 @@ elif page == "Agent Logs":
                     st.rerun()
 
             if selected_log:
-                log_path = os.path.join(storage.AGENTS_DIR, selected_log)
+                safe_selected_log = os.path.basename(selected_log)
+                log_path = os.path.join(storage.AGENTS_DIR, safe_selected_log)
 
                 mod_time = datetime.fromtimestamp(os.path.getmtime(log_path))
                 file_size = os.path.getsize(log_path)
