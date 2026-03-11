@@ -562,50 +562,40 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y %H:%M")
+    return str(dt)
+
 def format_time_ago(iso_str):
+    """
+    Returns a human-readable 'time ago' string for an ISO timestamp.
+    Handles 'Z' suffix and ensuring timezone awareness for comparison.
+    """
     try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+        dt = parse_iso(iso_str)
+        if not isinstance(dt, datetime):
+            return html.escape(str(iso_str or ""))
 
         diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
+        seconds = int(diff.total_seconds())
+
+        if seconds < 0:
             return "Just now"
-        if diff.days > 0:
+        if seconds < 60:
+            return f"{seconds}s ago"
+        if seconds < 3600:
+            return f"{seconds // 60}m ago"
+        if seconds < 86400:
+            return f"{seconds // 3600}h ago"
+        if diff.days < 30:
             return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+        if diff.days < 365:
+            return f"{diff.days // 30}mo ago"
+        return f"{diff.days // 365}y ago"
+    except Exception:
         return html.escape(str(iso_str or ""))
-
-    now = datetime.now(timezone.utc)
-    diff = now - dt
-    seconds = int(diff.total_seconds())
-
-    if seconds < 0:
-        return "Just now"
-    if seconds < 60:
-        return f"{seconds}s ago"
-    if seconds < 3600:
-        return f"{seconds // 60}m ago"
-    if seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    if diff.days < 30:
-        return f"{diff.days}d ago"
-    if diff.days < 365:
-        return f"{diff.days // 30}mo ago"
-    return f"{diff.days // 365}y ago"
 
 
 with st.sidebar:
@@ -629,7 +619,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -684,9 +675,8 @@ with st.sidebar:
 
     st.markdown("---")
 
-    theme_label = "Switch to Light" if is_dark else "Switch to Dark"
-    theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    theme_label = "Light Mode" if is_dark else "Dark Mode"
+    if st.button(theme_label, key="theme_toggle", use_container_width=True, help="Toggle between dark and light themes"):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -703,7 +693,7 @@ with st.sidebar:
         <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
         <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" class="promo-cta" aria-label="Learn about Main Owner mission authority" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -753,7 +743,7 @@ if page == "Dashboard":
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" class="card-cta" aria-label="Start Main Owner onboarding">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -826,7 +816,7 @@ if page == "Dashboard":
         <div class="promo-tag">New Feature</div>
         <div class="promo-title">{hero_headlines[headline_variant]}</div>
         <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" class="promo-cta" aria-label="Set up Main Owner for mission accountability">{hero_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -894,7 +884,7 @@ if page == "Dashboard":
                 <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
+            <a href="?page=Main+Owner+Guide" class="promo-cta" aria-label="Unlock Main Owner mission unification" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1214,7 +1204,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
