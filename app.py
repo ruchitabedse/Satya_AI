@@ -401,6 +401,32 @@ div[data-testid="stExpander"] {{
     box-shadow: 0 12px 24px var(--shadow-color);
 }}
 
+.promo-tag {{
+    display: inline-block;
+    background: rgba(108, 92, 231, 0.2);
+    color: var(--primary-light);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}}
+
+.promo-title {{
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}}
+
+.promo-subtitle {{
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}}
+
 .hero-card {{
     background: linear-gradient(135deg, #6C5CE7 0%, #5A4BD1 100%);
     padding: 2rem;
@@ -549,11 +575,13 @@ def parse_iso(iso_str):
     if not iso_str:
         return None
     try:
-        # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        # Robust handling: remove Z and handle offsets
+        clean_iso = str(iso_str).strip()
+        if clean_iso.endswith('Z'):
+            clean_iso = clean_iso[:-1]
+            # Only add offset if not already present
+            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
+                clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
@@ -562,35 +590,18 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return dt or "N/A"
+
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
+    dt = parse_iso(iso_str)
+    if not isinstance(dt, datetime):
+        return dt or ""
 
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
-        return html.escape(str(iso_str or ""))
-
-    now = datetime.now(timezone.utc)
-    diff = now - dt
+    diff = datetime.now(timezone.utc) - dt
     seconds = int(diff.total_seconds())
 
     if seconds < 0:
@@ -700,9 +711,9 @@ with st.sidebar:
     mobile_ctas = {"1": "Setup", "2": "Start"}
     st.markdown(f"""
     <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
-        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
-        <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
-        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
+        <div class="promo-tag" aria-hidden="true">Mission</div>
+        <div class="promo-title" style="font-size: 0.9rem;">{mobile_headlines[headline_variant]}</div>
+        <div class="promo-subtitle" style="font-size: 0.75rem; margin-bottom: 0.8rem;">Establish Mission Authority</div>
         <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
@@ -839,16 +850,17 @@ if page == "Dashboard":
         if sorted_tasks:
             for task in sorted_tasks:
                 priority = task.get("priority", "Medium")
+                desc = html.escape(task.get('description', 'No description provided.'))
                 st.markdown(f"""
-                <div class="task-card {get_priority_class(priority)}">
+                <div class="task-card {get_priority_class(priority)}" title="{desc}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
                         {get_priority_badge(priority)}
                     </div>
                     <div class="task-meta">
-                        {html.escape(task.get('assignee', 'Unassigned'))} &middot;
+                        <span aria-hidden="true">&#128100;</span> {html.escape(task.get('assignee', 'Unassigned'))} &middot;
                         {html.escape(task.get('status', 'To Do'))} &middot;
-                        {format_time_ago(task.get('updated_at', ''))}
+                        <span aria-hidden="true">&#9202;</span> {format_time_ago(task.get('updated_at', ''))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -889,12 +901,11 @@ if page == "Dashboard":
         compact_ctas = {"1": "Get Started", "2": "Enable Now"}
 
         st.markdown(f"""
-        <div class="promo-card promo-compact">
-            <div>
-                <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
-            </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
+        <div class="promo-card promo-compact" style="padding: 1rem;">
+            <div class="promo-tag" aria-hidden="true">Unlock</div>
+            <div class="promo-title" style="font-size: 1rem; margin-bottom: 0.25rem;">{compact_headlines[headline_variant]}</div>
+            <div class="promo-subtitle" style="font-size: 0.8rem; margin-bottom: 0.8rem;">Unify your agent's mission today.</div>
+            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem; display: block;">{compact_ctas[cta_variant]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1009,9 +1020,10 @@ elif page == "Task Board":
 
             for task in tasks_by_status[status]:
                 priority = task.get("priority", "Medium")
+                full_desc = html.escape(task.get('description', 'No description provided.'))
 
                 st.markdown(f"""
-                <div class="task-card {get_priority_class(priority)}">
+                <div class="task-card {get_priority_class(priority)}" title="{full_desc}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
                         {get_priority_badge(priority)}
@@ -1021,8 +1033,8 @@ elif page == "Task Board":
                     </div>
                     <div class="task-meta">
                         <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
-                        &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
-                        &#128197; {format_date(task.get('created_at', ''))}
+                        <span aria-hidden="true">&#128100;</span> {html.escape(task.get('assignee', 'Unassigned'))} &middot;
+                        <span aria-hidden="true">&#128197;</span> {format_date(task.get('created_at', ''))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
