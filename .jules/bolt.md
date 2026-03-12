@@ -11,3 +11,7 @@ BOLT'S PHILOSOPHY:
 ## 2024-05-23 - Flat-file N+1 file reads
 **Learning:** In a flat-file architecture, calling functions that scan the entire data directory (like `get_stale_tasks` or `list_all`) multiple times per request leads to an N+1 disk I/O problem.
 **Action:** Always allow passing already-loaded data into secondary checkers or metrics calculators to reuse in-memory state.
+
+## 2025-05-15 - Directory mtime caching for flat-file "DB"
+**Learning:** In a flat-file architecture, `os.listdir` + `json.load` for every task in every request is slow. Directory `mtime` is a reliable, high-performance trigger for cache invalidation on Linux.
+**Action:** Implement `mtime`-based caching for directory-wide reads, returning deep copies to prevent state leakage, and add explicit invalidation triggers in write/delete methods.

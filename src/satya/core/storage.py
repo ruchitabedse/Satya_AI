@@ -2,6 +2,7 @@ import os
 import json
 import fcntl
 import logging
+import copy
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,11 @@ SATYA_DIR = "satya_data"
 TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
+
+# In-memory cache for tasks to avoid N+1 disk I/O
+_tasks_cache: List[Dict[str, Any]] = []
+_tasks_cache_mtime: float = 0
+_tasks_cache_path: str = ""
 
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
@@ -32,6 +38,12 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate task cache if writing to tasks directory
+                if filepath.startswith(TASKS_DIR):
+                    global _tasks_cache_mtime
+                    _tasks_cache_mtime = 0
+
                 return True
             finally:
                 # Release lock
@@ -87,18 +99,40 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    global _tasks_cache, _tasks_cache_mtime, _tasks_cache_path
+
     if not os.path.exists(TASKS_DIR):
         return []
+
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+    except OSError:
+        current_mtime = 0
+
+    # Return from cache if valid
+    if _tasks_cache_path == TASKS_DIR and _tasks_cache_mtime == current_mtime:
+        # Return deep copies to prevent callers from mutating the cache
+        return [copy.deepcopy(t) for t in _tasks_cache]
+
     tasks = []
     for f in os.listdir(TASKS_DIR):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    # Update cache
+    _tasks_cache = tasks
+    _tasks_cache_mtime = current_mtime
+    _tasks_cache_path = TASKS_DIR
+
+    return [copy.deepcopy(t) for t in tasks]
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        # Invalidate task cache
+        global _tasks_cache_mtime
+        _tasks_cache_mtime = 0
         return True
     return False
 
