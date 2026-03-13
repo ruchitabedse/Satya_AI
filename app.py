@@ -544,6 +544,13 @@ def get_priority_badge(priority):
 def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
 
+def format_date(iso_str):
+    """Format an ISO string into a human-readable date."""
+    dt = parse_iso(iso_str)
+    if not dt or isinstance(dt, str):
+        return html.escape(str(iso_str or ""))
+    return dt.strftime("%b %d, %Y")
+
 def parse_iso(iso_str):
     """Robust ISO parser that handles Z and ensures timezone awareness."""
     if not iso_str:
@@ -560,37 +567,15 @@ def parse_iso(iso_str):
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except:
-        return html.escape(str(iso_str or "N/A"))
+        return None
 
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Format an ISO string into a relative time (e.g., '5m ago')."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or ""))
 
-    now = datetime.now(timezone.utc)
-    diff = now - dt
+    diff = datetime.now(timezone.utc) - dt
     seconds = int(diff.total_seconds())
 
     if seconds < 0:
@@ -839,8 +824,9 @@ if page == "Dashboard":
         if sorted_tasks:
             for task in sorted_tasks:
                 priority = task.get("priority", "Medium")
+                desc = html.escape(str(task.get("description") or "No description available."))
                 st.markdown(f"""
-                <div class="task-card {get_priority_class(priority)}">
+                <div class="task-card {get_priority_class(priority)}" title="{desc}" style="cursor: help;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
                         {get_priority_badge(priority)}
@@ -1009,15 +995,16 @@ elif page == "Task Board":
 
             for task in tasks_by_status[status]:
                 priority = task.get("priority", "Medium")
+                desc = html.escape(str(task.get("description") or "No description available."))
 
                 st.markdown(f"""
-                <div class="task-card {get_priority_class(priority)}">
+                <div class="task-card {get_priority_class(priority)}" title="{desc}" style="cursor: help;">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
                         {get_priority_badge(priority)}
                     </div>
                     <div style="font-size: 0.82rem; color: var(--text-secondary); margin: 0.3rem 0;">
-                        {html.escape(task.get('description', '')[:80])}{'...' if len(task.get('description', '')) > 80 else ''}
+                        {html.escape((task.get('description') or '')[:80])}{'...' if len(task.get('description') or '') > 80 else ''}
                     </div>
                     <div class="task-meta">
                         <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
@@ -1058,10 +1045,10 @@ elif page == "Task Board":
                     comments = task.get("comments", [])
                     if comments:
                         for c in reversed(comments):
-                            try:
-                                ts_obj = datetime.fromisoformat(c.get("timestamp", ""))
-                                ts_str = ts_obj.strftime("%H:%M:%S")
-                            except ValueError:
+                            ts_dt = parse_iso(c.get("timestamp", ""))
+                            if ts_dt:
+                                ts_str = ts_dt.strftime("%H:%M:%S")
+                            else:
                                 ts_str = html.escape(str(c.get("timestamp", "")))
                             txt = html.escape(c.get("text", ""))
                             st.markdown(f"<div style='font-size: 0.8rem; margin-bottom: 0.4rem; border-left: 2px solid var(--border); padding-left: 0.5rem;'><span style='color: var(--text-secondary);'>{ts_str}</span> {txt}</div>", unsafe_allow_html=True)
