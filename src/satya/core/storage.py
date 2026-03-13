@@ -2,6 +2,7 @@ import os
 import json
 import fcntl
 import logging
+import copy
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,16 @@ SATYA_DIR = "satya_data"
 TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
+
+# Global cache for tasks to avoid N+1 disk I/O in list_tasks
+_TASKS_CACHE = {
+    "mtime": -1.0,
+    "tasks": [],
+    "path": TASKS_DIR
+}
+
+def _invalidate_cache():
+    _TASKS_CACHE["mtime"] = -1.0
 
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
@@ -32,6 +43,9 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+                # Invalidate cache if we're touching a task file
+                if TASKS_DIR in filepath:
+                    _invalidate_cache()
                 return True
             finally:
                 # Release lock
@@ -89,16 +103,34 @@ def get_task_path(task_id: str) -> str:
 def list_tasks() -> List[Dict[str, Any]]:
     if not os.path.exists(TASKS_DIR):
         return []
+
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+    except OSError:
+        current_mtime = -1.0
+
+    # Return cached tasks if directory mtime hasn't changed
+    if _TASKS_CACHE["mtime"] == current_mtime and _TASKS_CACHE["path"] == TASKS_DIR:
+        return [copy.deepcopy(t) for t in _TASKS_CACHE["tasks"]]
+
     tasks = []
     for f in os.listdir(TASKS_DIR):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    # Update cache
+    _TASKS_CACHE["mtime"] = current_mtime
+    _TASKS_CACHE["tasks"] = tasks
+    _TASKS_CACHE["path"] = TASKS_DIR
+
+    # Return copies to prevent accidental cache mutation
+    return [copy.deepcopy(t) for t in tasks]
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        _invalidate_cache()
         return True
     return False
 
