@@ -1,3 +1,3 @@
-## 2026-03-09 - [Time Formatting Robustness]
-**Learning:** Naive datetime comparisons against parsed ISO timestamps (which are often offset-aware) lead to TypeErrors, causing UI elements like relative time strings ("X min ago") to fail silently or crash the app. Additionally, the 'Z' suffix in ISO strings is not always handled consistently across Python versions.
-**Action:** Always use `datetime.now(timezone.utc)` when comparing against parsed ISO strings. Implement a robust parsing helper that handles 'Z' and offset-aware strings gracefully to ensure UX elements relying on time are always functional.
+## 2024-03-14 - Robust Timestamp Parsing for UI Stability
+**Learning:** In Streamlit applications, utility functions used within `st.markdown(..., unsafe_allow_html=True)` blocks must be extremely defensive. A single `ValueError` or `TypeError` in a formatting helper (like `format_date`) can cause the entire page to fail to render, leading to a poor user experience. Returning a sanitized fallback string (using `html.escape`) is better than crashing or returning unescaped raw data.
+**Action:** Always use a central, robust parser (like `parse_iso`) that returns `None` on failure, allowing formatting helpers to provide consistent, safe fallbacks. Ensure type checks are performed on inputs to avoid `AttributeError` or `TypeError`.
