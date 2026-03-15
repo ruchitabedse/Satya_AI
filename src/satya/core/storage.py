@@ -1,10 +1,15 @@
 import os
 import json
 import fcntl
+import copy
 import logging
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Task list cache variables for performance optimization
+_tasks_cache = None
+_tasks_mtime = -1.0
 
 SATYA_DIR = "satya_data"
 TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
@@ -32,6 +37,12 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate cache if we're writing to the tasks directory
+                if TASKS_DIR in filepath:
+                    global _tasks_mtime
+                    _tasks_mtime = -1.0
+
                 return True
             finally:
                 # Release lock
@@ -87,18 +98,41 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    global _tasks_cache, _tasks_mtime
+
     if not os.path.exists(TASKS_DIR):
         return []
+
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+    except OSError:
+        current_mtime = -1.0
+
+    # Return cached results if directory hasn't changed
+    if (_tasks_cache is not None and _tasks_mtime == current_mtime):
+        # Return copies to prevent accidental mutation of the cache
+        return copy.deepcopy(_tasks_cache)
+
     tasks = []
     for f in os.listdir(TASKS_DIR):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    # Update cache
+    _tasks_cache = tasks
+    _tasks_mtime = current_mtime
+
+    return copy.deepcopy(tasks)
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+
+        # Invalidate cache
+        global _tasks_mtime
+        _tasks_mtime = -1.0
+
         return True
     return False
 
