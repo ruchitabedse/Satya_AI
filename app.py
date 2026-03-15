@@ -562,50 +562,46 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    """Format an ISO string into a human-readable date."""
+    parsed = parse_iso(iso_str)
+    if isinstance(parsed, datetime):
+        return parsed.strftime('%b %d, %Y')
+    return parsed or html.escape("N/A")
+
 def format_time_ago(iso_str):
+    """Calculate relative time from an ISO string with full granularity."""
     try:
         # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
+        clean_iso = iso_str or ""
         if clean_iso.endswith('Z'):
             clean_iso = clean_iso[:-1]
             if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
                 clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
-
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
 
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
+        now = datetime.now(timezone.utc)
+        diff = now - dt
+        seconds = int(diff.total_seconds())
+
+        if seconds < 0:
             return "Just now"
-        if diff.days > 0:
+        if seconds < 60:
+            return f"{seconds}s ago"
+        if seconds < 3600:
+            return f"{seconds // 60}m ago"
+        if seconds < 86400:
+            return f"{seconds // 3600}h ago"
+        if diff.days < 30:
             return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
+        if diff.days < 365:
+            return f"{diff.days // 30}mo ago"
+        return f"{diff.days // 365}y ago"
     except:
         return html.escape(str(iso_str or ""))
-
-    now = datetime.now(timezone.utc)
-    diff = now - dt
-    seconds = int(diff.total_seconds())
-
-    if seconds < 0:
-        return "Just now"
-    if seconds < 60:
-        return f"{seconds}s ago"
-    if seconds < 3600:
-        return f"{seconds // 60}m ago"
-    if seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    if diff.days < 30:
-        return f"{diff.days}d ago"
-    if diff.days < 365:
-        return f"{diff.days // 30}mo ago"
-    return f"{diff.days // 365}y ago"
 
 
 with st.sidebar:
@@ -838,17 +834,17 @@ if page == "Dashboard":
 
         if sorted_tasks:
             for task in sorted_tasks:
-                priority = task.get("priority", "Medium")
+                priority = task.get("priority") or "Medium"
                 st.markdown(f"""
                 <div class="task-card {get_priority_class(priority)}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
+                        <div class="task-title">{html.escape(task.get('title') or 'Untitled')}</div>
                         {get_priority_badge(priority)}
                     </div>
                     <div class="task-meta">
-                        {html.escape(task.get('assignee', 'Unassigned'))} &middot;
-                        {html.escape(task.get('status', 'To Do'))} &middot;
-                        {format_time_ago(task.get('updated_at', ''))}
+                        {html.escape(task.get('assignee') or 'Unassigned')} &middot;
+                        {html.escape(task.get('status') or 'To Do')} &middot;
+                        {format_time_ago(task.get('updated_at'))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -933,11 +929,11 @@ if page == "Dashboard":
         audit_events.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
         # Display top 10
         for event in audit_events[:10]:
-            ts = format_date(event.get('timestamp', ''))
-            agent = event.get('agent', 'System')
-            action = event.get('action', 'Unknown Action')
-            details = event.get('details', '')
-            task_title = event.get('task_title', '')
+            ts = format_date(event.get('timestamp'))
+            agent = event.get('agent') or 'System'
+            action = event.get('action') or 'Unknown Action'
+            details = event.get('details') or ''
+            task_title = event.get('task_title') or 'Unknown Task'
 
             st.markdown(f"""
             <div style="font-size: 0.85rem; padding: 0.5rem; border-left: 3px solid var(--info); margin-bottom: 0.5rem; background: var(--bg-card); border-radius: 4px;">
@@ -1008,21 +1004,21 @@ elif page == "Task Board":
                 """, unsafe_allow_html=True)
 
             for task in tasks_by_status[status]:
-                priority = task.get("priority", "Medium")
+                priority = task.get("priority") or "Medium"
 
                 st.markdown(f"""
                 <div class="task-card {get_priority_class(priority)}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
+                        <div class="task-title">{html.escape(task.get('title') or 'Untitled')}</div>
                         {get_priority_badge(priority)}
                     </div>
                     <div style="font-size: 0.82rem; color: var(--text-secondary); margin: 0.3rem 0;">
-                        {html.escape(task.get('description', '')[:80])}{'...' if len(task.get('description', '')) > 80 else ''}
+                        {html.escape((task.get('description') or '')[:80])}{'...' if len(task.get('description') or '') > 80 else ''}
                     </div>
                     <div class="task-meta">
-                        <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
-                        &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
-                        &#128197; {format_date(task.get('created_at', ''))}
+                        <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id') or '')}</span> &middot;
+                        &#128100; {html.escape(task.get('assignee') or 'Unassigned')} &middot;
+                        &#128197; {format_date(task.get('created_at'))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
