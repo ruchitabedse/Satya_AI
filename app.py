@@ -560,33 +560,19 @@ def parse_iso(iso_str):
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except:
-        return html.escape(str(iso_str or "N/A"))
+        return None
+
+def format_date(iso_str):
+    """Returns a human-readable date string (e.g., 'Jan 24, 2024')."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return html.escape(str(iso_str or "N/A"))
 
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Returns a relative time string (e.g., '2h ago')."""
+    dt = parse_iso(iso_str)
+    if not isinstance(dt, datetime):
         return html.escape(str(iso_str or ""))
 
     now = datetime.now(timezone.utc)
@@ -619,7 +605,7 @@ with st.sidebar:
     st.markdown("---")
 
     # Handle Navigation via Query Parameters
-    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
+    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"]
     query_params = st.query_params
     default_index = 0
     if "page" in query_params:
@@ -629,7 +615,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -703,7 +690,7 @@ with st.sidebar:
         <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
         <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -773,7 +760,7 @@ if page == "Dashboard":
     with c1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128202;</div>
+            <div class="metric-icon" aria-label="Total tasks icon">&#128202;</div>
             <div class="metric-value" style="color: var(--primary-light);">{stats['total']}</div>
             <div class="metric-label">Total Tasks</div>
         </div>
@@ -782,7 +769,7 @@ if page == "Dashboard":
     with c2:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128204;</div>
+            <div class="metric-icon" aria-label="To Do icon">&#128204;</div>
             <div class="metric-value" style="color: var(--info);">{stats['queued']}</div>
             <div class="metric-label">To Do</div>
         </div>
@@ -791,7 +778,7 @@ if page == "Dashboard":
     with c3:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9889;</div>
+            <div class="metric-icon" aria-label="In Progress icon">&#9889;</div>
             <div class="metric-value" style="color: var(--warning);">{stats['in_progress']}</div>
             <div class="metric-label">In Progress</div>
         </div>
@@ -800,7 +787,7 @@ if page == "Dashboard":
     with c4:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9989;</div>
+            <div class="metric-icon" aria-label="Completed icon">&#9989;</div>
             <div class="metric-value" style="color: var(--success);">{stats['done']}</div>
             <div class="metric-label">Completed</div>
         </div>
@@ -822,11 +809,11 @@ if page == "Dashboard":
     }
 
     st.markdown(f"""
-    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
+    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner'">
         <div class="promo-tag">New Feature</div>
         <div class="promo-title">{hero_headlines[headline_variant]}</div>
         <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner" class="promo-cta">{hero_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -894,7 +881,7 @@ if page == "Dashboard":
                 <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
+            <a href="?page=Main+Owner" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1021,8 +1008,8 @@ elif page == "Task Board":
                     </div>
                     <div class="task-meta">
                         <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
-                        &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
-                        &#128197; {format_date(task.get('created_at', ''))}
+                        <span aria-label="Assignee">&#128100;</span> {html.escape(task.get('assignee', 'Unassigned'))} &middot;
+                        <span aria-label="Created date">&#128197;</span> {format_date(task.get('created_at', ''))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
