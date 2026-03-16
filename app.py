@@ -544,16 +544,27 @@ def get_priority_badge(priority):
 def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
 
+def format_date(iso_str):
+    """
+    Formats an ISO date string into a human-readable 'Jan 24, 2024' format.
+    Safely handles malformed strings and provides HTML-escaped fallbacks.
+    """
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return html.escape(str(iso_str or "N/A"))
+
 def parse_iso(iso_str):
     """Robust ISO parser that handles Z and ensures timezone awareness."""
     if not iso_str:
         return None
     try:
         # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        clean_iso = iso_str
+        if clean_iso.endswith('Z'):
+            clean_iso = clean_iso[:-1]
+            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
+                clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
