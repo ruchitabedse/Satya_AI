@@ -2,6 +2,7 @@ import os
 import json
 import fcntl
 import logging
+import copy
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,12 @@ SATYA_DIR = "satya_data"
 TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
+
+# In-memory cache for task listing to avoid N+1 disk I/O
+_tasks_cache: Dict[str, Any] = {
+    "mtime": -1,
+    "tasks": []
+}
 
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
@@ -32,6 +39,11 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # ⚡ Bolt: Invalidate cache if a task was saved
+                if filepath.startswith(TASKS_DIR):
+                    _tasks_cache["mtime"] = -1
+
                 return True
             finally:
                 # Release lock
@@ -87,18 +99,39 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    """
+    Lists all tasks. Uses an in-memory cache validated by directory mtime.
+    ⚡ Bolt Optimization: Reduces N+1 disk I/O to a single stat call when cache is hit.
+    """
     if not os.path.exists(TASKS_DIR):
         return []
+
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+    except OSError:
+        current_mtime = -1
+
+    # Return cached tasks if mtime hasn't changed
+    if _tasks_cache["mtime"] == current_mtime:
+        return copy.deepcopy(_tasks_cache["tasks"])
+
     tasks = []
     for f in os.listdir(TASKS_DIR):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    # Update cache
+    _tasks_cache["mtime"] = current_mtime
+    _tasks_cache["tasks"] = tasks
+
+    return copy.deepcopy(tasks)
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        # ⚡ Bolt: Invalidate cache
+        _tasks_cache["mtime"] = -1
         return True
     return False
 
