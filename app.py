@@ -562,38 +562,24 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    """Formats an ISO string into a human-readable date (e.g., 'Jan 24, 2024')."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return html.escape(str(iso_str or "N/A"))
+
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Returns a relative time string (e.g., '2h ago') with high granularity."""
+    dt = parse_iso(iso_str)
+    if not isinstance(dt, datetime):
         return html.escape(str(iso_str or ""))
 
     now = datetime.now(timezone.utc)
     diff = now - dt
     seconds = int(diff.total_seconds())
 
-    if seconds < 0:
+    if seconds < 5:
         return "Just now"
     if seconds < 60:
         return f"{seconds}s ago"
@@ -686,7 +672,7 @@ with st.sidebar:
 
     theme_label = "Switch to Light" if is_dark else "Switch to Dark"
     theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True, help=f"Switch to {'light' if is_dark else 'dark'} theme"):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -773,7 +759,7 @@ if page == "Dashboard":
     with c1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128202;</div>
+            <div class="metric-icon"><span role="img" aria-label="Total tasks icon">&#128202;</span></div>
             <div class="metric-value" style="color: var(--primary-light);">{stats['total']}</div>
             <div class="metric-label">Total Tasks</div>
         </div>
@@ -782,7 +768,7 @@ if page == "Dashboard":
     with c2:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128204;</div>
+            <div class="metric-icon"><span role="img" aria-label="Queued tasks icon">&#128204;</span></div>
             <div class="metric-value" style="color: var(--info);">{stats['queued']}</div>
             <div class="metric-label">To Do</div>
         </div>
@@ -791,7 +777,7 @@ if page == "Dashboard":
     with c3:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9889;</div>
+            <div class="metric-icon"><span role="img" aria-label="In progress tasks icon">&#9889;</span></div>
             <div class="metric-value" style="color: var(--warning);">{stats['in_progress']}</div>
             <div class="metric-label">In Progress</div>
         </div>
@@ -800,7 +786,7 @@ if page == "Dashboard":
     with c4:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9989;</div>
+            <div class="metric-icon"><span role="img" aria-label="Completed tasks icon">&#9989;</span></div>
             <div class="metric-value" style="color: var(--success);">{stats['done']}</div>
             <div class="metric-label">Completed</div>
         </div>
@@ -989,9 +975,9 @@ elif page == "Task Board":
     col1, col2, col3 = st.columns(3)
 
     headers = {
-        "queued": ("header-todo", "&#128204; To Do", col1),
-        "in_progress": ("header-progress", "&#9889; In Progress", col2),
-        "done": ("header-done", "&#9989; Done", col3)
+        "queued": ("header-todo", '<span role="img" aria-label="To Do icon">&#128204;</span> To Do', col1),
+        "in_progress": ("header-progress", '<span role="img" aria-label="In Progress icon">&#9889;</span> In Progress', col2),
+        "done": ("header-done", '<span role="img" aria-label="Done icon">&#9989;</span> Done', col3)
     }
 
     for status, (css_class, label, col) in headers.items():
@@ -1021,8 +1007,8 @@ elif page == "Task Board":
                     </div>
                     <div class="task-meta">
                         <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
-                        &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
-                        &#128197; {format_date(task.get('created_at', ''))}
+                        <span role="img" aria-label="Assignee">&#128100;</span> {html.escape(task.get('assignee', 'Unassigned'))} &middot;
+                        <span role="img" aria-label="Created Date">&#128197;</span> {format_date(task.get('created_at', ''))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
