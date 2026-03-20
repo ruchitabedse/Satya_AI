@@ -560,7 +560,14 @@ def parse_iso(iso_str):
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except:
-        return html.escape(str(iso_str or "N/A"))
+        return None
+
+def format_date(iso_str):
+    """Formats an ISO timestamp into a human-readable date string."""
+    dt = parse_iso(iso_str)
+    if dt and isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return html.escape(str(iso_str or "N/A"))
 
 def format_time_ago(iso_str):
     try:
