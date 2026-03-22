@@ -159,6 +159,7 @@ section[data-testid="stSidebar"] [data-testid="stMarkdown"] {{
 .task-card:hover {{
     background: var(--bg-card-hover);
     box-shadow: 0 4px 20px var(--shadow-color);
+    cursor: help;
 }}
 
 .task-card.priority-critical {{ border-left-color: var(--danger); }}
@@ -560,52 +561,41 @@ def parse_iso(iso_str):
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except:
+        return None
+
+def format_date(iso_str):
+    """Human-readable date formatter."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y")
 
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Relative time formatter (e.g., '2m ago')."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or ""))
 
-    now = datetime.now(timezone.utc)
-    diff = now - dt
-    seconds = int(diff.total_seconds())
+    try:
+        now = datetime.now(timezone.utc)
+        diff = now - dt
+        seconds = int(diff.total_seconds())
 
-    if seconds < 0:
-        return "Just now"
-    if seconds < 60:
-        return f"{seconds}s ago"
-    if seconds < 3600:
-        return f"{seconds // 60}m ago"
-    if seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    if diff.days < 30:
-        return f"{diff.days}d ago"
-    if diff.days < 365:
-        return f"{diff.days // 30}mo ago"
-    return f"{diff.days // 365}y ago"
+        if seconds < 0:
+            return "Just now"
+        if seconds < 60:
+            return f"{seconds}s ago"
+        if seconds < 3600:
+            return f"{seconds // 60}m ago"
+        if seconds < 86400:
+            return f"{seconds // 3600}h ago"
+        if diff.days < 30:
+            return f"{diff.days}d ago"
+        if diff.days < 365:
+            return f"{diff.days // 30}mo ago"
+        return f"{diff.days // 365}y ago"
+    except Exception:
+        return html.escape(str(iso_str or ""))
 
 
 with st.sidebar:
@@ -629,7 +619,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -686,7 +677,7 @@ with st.sidebar:
 
     theme_label = "Switch to Light" if is_dark else "Switch to Dark"
     theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True, help="Toggle between Light and Dark themes for better accessibility"):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -753,7 +744,7 @@ if page == "Dashboard":
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" target="_self" class="card-cta" title="Begin the Main Owner onboarding process">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -773,7 +764,7 @@ if page == "Dashboard":
     with c1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128202;</div>
+            <div class="metric-icon"><span role="img" aria-label="Total tasks icon">&#128202;</span></div>
             <div class="metric-value" style="color: var(--primary-light);">{stats['total']}</div>
             <div class="metric-label">Total Tasks</div>
         </div>
@@ -782,7 +773,7 @@ if page == "Dashboard":
     with c2:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128204;</div>
+            <div class="metric-icon"><span role="img" aria-label="To do icon">&#128204;</span></div>
             <div class="metric-value" style="color: var(--info);">{stats['queued']}</div>
             <div class="metric-label">To Do</div>
         </div>
@@ -791,7 +782,7 @@ if page == "Dashboard":
     with c3:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9889;</div>
+            <div class="metric-icon"><span role="img" aria-label="In progress icon">&#9889;</span></div>
             <div class="metric-value" style="color: var(--warning);">{stats['in_progress']}</div>
             <div class="metric-label">In Progress</div>
         </div>
@@ -800,7 +791,7 @@ if page == "Dashboard":
     with c4:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9989;</div>
+            <div class="metric-icon"><span role="img" aria-label="Completed icon">&#9989;</span></div>
             <div class="metric-value" style="color: var(--success);">{stats['done']}</div>
             <div class="metric-label">Completed</div>
         </div>
@@ -989,9 +980,9 @@ elif page == "Task Board":
     col1, col2, col3 = st.columns(3)
 
     headers = {
-        "queued": ("header-todo", "&#128204; To Do", col1),
-        "in_progress": ("header-progress", "&#9889; In Progress", col2),
-        "done": ("header-done", "&#9989; Done", col3)
+        "queued": ("header-todo", '<span role="img" aria-label="To Do icon">&#128204;</span> To Do', col1),
+        "in_progress": ("header-progress", '<span role="img" aria-label="In Progress icon">&#9889;</span> In Progress', col2),
+        "done": ("header-done", '<span role="img" aria-label="Completed icon">&#9989;</span> Done', col3)
     }
 
     for status, (css_class, label, col) in headers.items():
@@ -1009,9 +1000,10 @@ elif page == "Task Board":
 
             for task in tasks_by_status[status]:
                 priority = task.get("priority", "Medium")
+                full_desc = html.escape(task.get('description', 'No description provided.'))
 
                 st.markdown(f"""
-                <div class="task-card {get_priority_class(priority)}">
+                <div class="task-card {get_priority_class(priority)}" title="{full_desc}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div class="task-title">{html.escape(task.get('title', 'Untitled'))}</div>
                         {get_priority_badge(priority)}
@@ -1021,8 +1013,8 @@ elif page == "Task Board":
                     </div>
                     <div class="task-meta">
                         <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
-                        &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
-                        &#128197; {format_date(task.get('created_at', ''))}
+                        <span role="img" aria-label="Assignee">&#128100;</span> {html.escape(task.get('assignee', 'Unassigned'))} &middot;
+                        <span role="img" aria-label="Created Date">&#128197;</span> {format_date(task.get('created_at', ''))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1214,7 +1206,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
