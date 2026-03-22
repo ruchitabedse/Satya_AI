@@ -2,6 +2,7 @@ import os
 import json
 import fcntl
 import logging
+import copy
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,10 @@ SATYA_DIR = "satya_data"
 TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
+
+# ⚡ Bolt Optimization: In-memory cache for tasks to avoid N+1 disk reads.
+# Format: { directory_path: (mtime, [tasks_list]) }
+_tasks_cache = {}
 
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
@@ -32,6 +37,12 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # ⚡ Bolt Optimization: Invalidate task cache if writing a task.
+                # We set mtime to -1.0 to force a refresh on next read to ensure consistency.
+                if TASKS_DIR in filepath:
+                    _tasks_cache[TASKS_DIR] = (-1.0, [])
+
                 return True
             finally:
                 # Release lock
@@ -89,16 +100,31 @@ def get_task_path(task_id: str) -> str:
 def list_tasks() -> List[Dict[str, Any]]:
     if not os.path.exists(TASKS_DIR):
         return []
+
+    # ⚡ Bolt Optimization: Use in-memory cache validated by directory mtime
+    current_mtime = os.path.getmtime(TASKS_DIR)
+    cached_mtime, cached_tasks = _tasks_cache.get(TASKS_DIR, (None, None))
+
+    if cached_mtime == current_mtime:
+        # We must return a deepcopy to avoid mutating the cache
+        return copy.deepcopy(cached_tasks)
+
     tasks = []
     for f in os.listdir(TASKS_DIR):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    # Update cache
+    _tasks_cache[TASKS_DIR] = (current_mtime, tasks)
+
+    return copy.deepcopy(tasks)
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        # ⚡ Bolt Optimization: Invalidate task cache
+        _tasks_cache[TASKS_DIR] = (-1.0, [])
         return True
     return False
 
