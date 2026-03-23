@@ -562,31 +562,18 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    """Formats an ISO timestamp into a human-readable date."""
+    dt = parse_iso(iso_str)
+    if not dt:
+        return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y")
+
+
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Returns a relative time string (e.g., '5m ago')."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or ""))
 
     now = datetime.now(timezone.utc)
@@ -629,7 +616,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -686,7 +674,8 @@ with st.sidebar:
 
     theme_label = "Switch to Light" if is_dark else "Switch to Dark"
     theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    theme_help = "Switch to Light Mode" if is_dark else "Switch to Dark Mode"
+    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True, help=theme_help):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -749,11 +738,11 @@ if page == "Dashboard":
 
     # Main Owner Promo Hero Card
     st.markdown("""
-    <div class="promo-card hero-card">
+    <div class="promo-card hero-card" onclick="window.location.href='?page=Main+Owner+Guide'" style="cursor: pointer;">
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" target="_self" class="card-cta" title="Start Onboarding">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1214,7 +1203,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
