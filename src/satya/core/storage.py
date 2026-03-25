@@ -11,6 +11,12 @@ TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
 
+# Performance: In-memory cache for tasks validated by directory mtime
+_TASKS_CACHE = {
+    "mtime": -1.0,
+    "tasks": []
+}
+
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
     os.makedirs(TRUTH_DIR, exist_ok=True)
@@ -32,6 +38,11 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Performance: Invalidate cache if updating a task
+                if TASKS_DIR in filepath:
+                    _TASKS_CACHE["mtime"] = -1.0
+
                 return True
             finally:
                 # Release lock
@@ -89,16 +100,35 @@ def get_task_path(task_id: str) -> str:
 def list_tasks() -> List[Dict[str, Any]]:
     if not os.path.exists(TASKS_DIR):
         return []
+
+    # Performance: Check if directory hasn't changed to skip N disk reads
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+    except Exception:
+        current_mtime = -1.0
+
+    if current_mtime != -1.0 and current_mtime == _TASKS_CACHE["mtime"]:
+        # Faster than copy.deepcopy() for simple dicts in this environment
+        return json.loads(json.dumps(_TASKS_CACHE["tasks"]))
+
     tasks = []
     for f in os.listdir(TASKS_DIR):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    # Update cache
+    _TASKS_CACHE["mtime"] = current_mtime
+    _TASKS_CACHE["tasks"] = tasks
+
+    # Return deep copy to prevent cache pollution
+    return json.loads(json.dumps(tasks))
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        # Performance: Invalidate cache
+        _TASKS_CACHE["mtime"] = -1.0
         return True
     return False
 
