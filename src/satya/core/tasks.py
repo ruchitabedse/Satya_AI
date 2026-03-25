@@ -17,7 +17,7 @@ class Tasks:
 
     def create_task(self, title, description, assignee=None, priority="Medium", agent_name="System", time_limit_minutes=30):
         task_id = str(uuid.uuid4())[:8]
-        now = datetime.now(timezone.utc).isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
 
         task = {
             "id": task_id,
@@ -73,6 +73,8 @@ class Tasks:
         if old_status in valid_transitions and new_status not in valid_transitions[old_status]:
             raise Exception(f"InvalidStatusTransition: Cannot move from {old_status} to {new_status}")
 
+        now = datetime.now(timezone.utc).isoformat()
+
         if new_status == STATUS_DONE:
             from .completion import CompletionChecker, CompletionCriteriaNotMet, TaskNotFound
             checker = CompletionChecker(self.repo_path)
@@ -82,7 +84,6 @@ class Tasks:
             except (CompletionCriteriaNotMet, TaskNotFound) as e:
                 raise CompletionCriteriaNotMet(f"CompletionCriteriaNotMet: {str(e)}")
 
-        now = datetime.now(timezone.utc).isoformat() + "Z"
         task["status"] = new_status
         task["updated_at"] = now
 
@@ -117,7 +118,7 @@ class Tasks:
         if task.get("locked_by") is not None and task.get("locked_by") != agent_name:
             raise Exception(f"Task already locked by {task.get('locked_by')}")
 
-        now = datetime.now(timezone.utc).isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
         task["locked_by"] = agent_name
         task["locked_at"] = now
         task["updated_at"] = now
@@ -134,7 +135,7 @@ class Tasks:
         if not task:
             return False
 
-        now = datetime.now(timezone.utc).isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
         task["locked_by"] = None
         task["locked_at"] = None
         task["updated_at"] = now
@@ -151,7 +152,7 @@ class Tasks:
         if not task:
             return False
 
-        now = datetime.now(timezone.utc).isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
         changed_fields = []
         for key, value in updates.items():
             if key != "id":
@@ -213,7 +214,7 @@ class Tasks:
         if "comments" not in task:
             task["comments"] = []
 
-        now = datetime.now(timezone.utc).isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
         entry = {
             "timestamp": now,
             "agent": agent_name,

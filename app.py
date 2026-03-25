@@ -545,52 +545,43 @@ def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
 
 def parse_iso(iso_str):
-    """Robust ISO parser that handles Z and ensures timezone awareness."""
+    """Robust ISO parser that handles Z, double offsets, and ensures timezone awareness."""
     if not iso_str:
         return None
     try:
-        # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
+        if isinstance(iso_str, datetime):
+            dt = iso_str
         else:
-            clean_iso = iso_str
+            clean_iso = str(iso_str)
+            # Handle the redundant Z after an offset (e.g. +00:00Z)
+            if '+' in clean_iso or '-' in clean_iso.split('T')[-1]:
+                if clean_iso.endswith('Z'):
+                    clean_iso = clean_iso[:-1]
+            elif clean_iso.endswith('Z'):
+                clean_iso = clean_iso.replace('Z', '+00:00')
 
-        dt = datetime.fromisoformat(clean_iso)
+            dt = datetime.fromisoformat(clean_iso)
+
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
-    except:
+    except Exception:
+        return None
+
+def format_date(iso_str):
+    """Formats an ISO timestamp into a human-readable date."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y")
 
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Formats an ISO timestamp into a relative 'time ago' string."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or ""))
 
-    now = datetime.now(timezone.utc)
-    diff = now - dt
+    diff = datetime.now(timezone.utc) - dt
     seconds = int(diff.total_seconds())
 
     if seconds < 0:
@@ -773,7 +764,7 @@ if page == "Dashboard":
     with c1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128202;</div>
+            <div class="metric-icon"><span role="img" aria-label="Total tasks icon">&#128202;</span></div>
             <div class="metric-value" style="color: var(--primary-light);">{stats['total']}</div>
             <div class="metric-label">Total Tasks</div>
         </div>
@@ -782,7 +773,7 @@ if page == "Dashboard":
     with c2:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128204;</div>
+            <div class="metric-icon"><span role="img" aria-label="To do icon">&#128204;</span></div>
             <div class="metric-value" style="color: var(--info);">{stats['queued']}</div>
             <div class="metric-label">To Do</div>
         </div>
@@ -791,7 +782,7 @@ if page == "Dashboard":
     with c3:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9889;</div>
+            <div class="metric-icon"><span role="img" aria-label="In progress icon">&#9889;</span></div>
             <div class="metric-value" style="color: var(--warning);">{stats['in_progress']}</div>
             <div class="metric-label">In Progress</div>
         </div>
@@ -800,7 +791,7 @@ if page == "Dashboard":
     with c4:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9989;</div>
+            <div class="metric-icon"><span role="img" aria-label="Completed icon">&#9989;</span></div>
             <div class="metric-value" style="color: var(--success);">{stats['done']}</div>
             <div class="metric-label">Completed</div>
         </div>
@@ -855,7 +846,7 @@ if page == "Dashboard":
         else:
             st.markdown("""
             <div class="empty-state">
-                <div class="empty-state-icon">&#128203;</div>
+                <div class="empty-state-icon"><span role="img" aria-label="Empty task list icon">&#128203;</span></div>
                 <div class="empty-state-text">No tasks yet. Create your first task!</div>
             </div>
             """, unsafe_allow_html=True)
@@ -1002,7 +993,7 @@ elif page == "Task Board":
             if not tasks_by_status[status]:
                 st.markdown("""
                 <div class="empty-state" style="padding: 2rem 1rem;">
-                    <div style="font-size: 2rem; opacity: 0.3;">&#128466;</div>
+                    <div style="font-size: 2rem; opacity: 0.3;"><span role="img" aria-label="No tasks icon">&#128466;</span></div>
                     <div style="font-size: 0.85rem; color: var(--text-secondary);">No tasks</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1021,8 +1012,8 @@ elif page == "Task Board":
                     </div>
                     <div class="task-meta">
                         <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
-                        &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
-                        &#128197; {format_date(task.get('created_at', ''))}
+                        <span role="img" aria-label="Assignee">&#128100;</span> {html.escape(task.get('assignee', 'Unassigned'))} &middot;
+                        <span role="img" aria-label="Created date">&#128197;</span> {format_date(task.get('created_at', ''))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
