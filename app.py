@@ -559,35 +559,21 @@ def parse_iso(iso_str):
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
-    except:
+    except Exception:
+        return None
+
+def format_date(iso_str):
+    """Formats an ISO string to a human-readable date: Oct 27, 2023."""
+    dt = parse_iso(iso_str)
+    if not dt or not isinstance(dt, datetime):
         return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y")
 
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
-        return html.escape(str(iso_str or ""))
+    """Returns a relative time string (e.g., 2h ago, 5d ago)."""
+    dt = parse_iso(iso_str)
+    if not dt or not isinstance(dt, datetime):
+        return html.escape(str(iso_str or "N/A"))
 
     now = datetime.now(timezone.utc)
     diff = now - dt
@@ -1058,11 +1044,11 @@ elif page == "Task Board":
                     comments = task.get("comments", [])
                     if comments:
                         for c in reversed(comments):
-                            try:
-                                ts_obj = datetime.fromisoformat(c.get("timestamp", ""))
-                                ts_str = ts_obj.strftime("%H:%M:%S")
-                            except ValueError:
-                                ts_str = html.escape(str(c.get("timestamp", "")))
+                            dt = parse_iso(c.get("timestamp", ""))
+                            if dt and isinstance(dt, datetime):
+                                ts_str = dt.strftime("%H:%M:%S")
+                            else:
+                                ts_str = html.escape(str(c.get("timestamp", "") or "N/A"))
                             txt = html.escape(c.get("text", ""))
                             st.markdown(f"<div style='font-size: 0.8rem; margin-bottom: 0.4rem; border-left: 2px solid var(--border); padding-left: 0.5rem;'><span style='color: var(--text-secondary);'>{ts_str}</span> {txt}</div>", unsafe_allow_html=True)
                     else:
