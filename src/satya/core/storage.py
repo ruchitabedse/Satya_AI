@@ -11,12 +11,17 @@ TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
 
+# ⚡ Bolt Optimization: Cache tasks list to avoid N+1 disk I/O
+_tasks_cache: List[Dict[str, Any]] = []
+_tasks_mtime: float = -1.0
+
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
     os.makedirs(TRUTH_DIR, exist_ok=True)
     os.makedirs(AGENTS_DIR, exist_ok=True)
 
 def save_json(filepath: str, data: Any) -> bool:
+    global _tasks_mtime
     tmp_filepath = filepath + ".tmp"
     lock_filepath = filepath + ".lock"
 
@@ -32,6 +37,11 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate tasks cache if we just saved a task
+                if TASKS_DIR in filepath:
+                    _tasks_mtime = -1.0
+
                 return True
             finally:
                 # Release lock
@@ -87,18 +97,39 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    global _tasks_cache, _tasks_mtime
+
     if not os.path.exists(TASKS_DIR):
         return []
+
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+    except Exception:
+        current_mtime = -1.0
+
+    # Return cached tasks if directory mtime hasn't changed
+    if current_mtime != -1.0 and current_mtime == _tasks_mtime:
+        # Return a deep copy to prevent callers from mutating the cache
+        # json load/dump is measured to be faster than copy.deepcopy for simple dicts
+        return json.loads(json.dumps(_tasks_cache))
+
     tasks = []
     for f in os.listdir(TASKS_DIR):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    # Update cache
+    _tasks_cache = tasks
+    _tasks_mtime = current_mtime
+
+    return json.loads(json.dumps(tasks))
 
 def delete_task_file(task_id: str) -> bool:
+    global _tasks_mtime
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        _tasks_mtime = -1.0
         return True
     return False
 
