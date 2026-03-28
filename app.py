@@ -560,7 +560,14 @@ def parse_iso(iso_str):
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except:
+        return None
+
+def format_date(iso_str):
+    """Converts ISO timestamp to 'Oct 27, 2023' format."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y")
 
 def format_time_ago(iso_str):
     try:
