@@ -11,6 +11,10 @@ TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
 
+# In-memory cache for tasks to avoid N+1 file reads
+_tasks_cache: List[Dict[str, Any]] = []
+_tasks_cache_mtime: float = -1.0
+
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
     os.makedirs(TRUTH_DIR, exist_ok=True)
@@ -32,6 +36,12 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate cache if we're writing to the tasks directory
+                if TASKS_DIR in filepath:
+                    global _tasks_cache_mtime
+                    _tasks_cache_mtime = -1.0
+
                 return True
             finally:
                 # Release lock
@@ -89,16 +99,34 @@ def get_task_path(task_id: str) -> str:
 def list_tasks() -> List[Dict[str, Any]]:
     if not os.path.exists(TASKS_DIR):
         return []
+
+    global _tasks_cache, _tasks_cache_mtime
+    current_mtime = os.path.getmtime(TASKS_DIR)
+
+    # Return cached data if mtime hasn't changed
+    if current_mtime == _tasks_cache_mtime:
+        # Return deep copy to prevent external mutation of the cache
+        return json.loads(json.dumps(_tasks_cache))
+
+    # Cache is stale, reload
     tasks = []
     for f in os.listdir(TASKS_DIR):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    # Update cache
+    _tasks_cache = tasks
+    _tasks_cache_mtime = current_mtime
+
+    return json.loads(json.dumps(tasks))
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        # Invalidate cache
+        global _tasks_cache_mtime
+        _tasks_cache_mtime = -1.0
         return True
     return False
 
