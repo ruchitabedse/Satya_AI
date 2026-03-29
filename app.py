@@ -589,23 +589,14 @@ def format_time_ago(iso_str):
     except:
         return html.escape(str(iso_str or ""))
 
-    now = datetime.now(timezone.utc)
-    diff = now - dt
-    seconds = int(diff.total_seconds())
-
-    if seconds < 0:
-        return "Just now"
-    if seconds < 60:
-        return f"{seconds}s ago"
-    if seconds < 3600:
-        return f"{seconds // 60}m ago"
-    if seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    if diff.days < 30:
-        return f"{diff.days}d ago"
-    if diff.days < 365:
-        return f"{diff.days // 30}mo ago"
-    return f"{diff.days // 365}y ago"
+def format_date(iso_str):
+    try:
+        dt = parse_iso(iso_str)
+        if isinstance(dt, datetime):
+            return dt.strftime("%b %d, %Y")
+    except:
+        pass
+    return html.escape(str(iso_str or "N/A"))
 
 
 with st.sidebar:
@@ -629,7 +620,7 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"],
         label_visibility="collapsed"
     )
 
@@ -684,9 +675,9 @@ with st.sidebar:
 
     st.markdown("---")
 
-    theme_label = "Switch to Light" if is_dark else "Switch to Dark"
-    theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    theme_label = "Light Mode" if is_dark else "Dark Mode"
+    theme_icon = "☀️" if is_dark else "🌙"
+    if st.button(f"{theme_icon} {theme_label}", key="theme_toggle", use_container_width=True, help=f"Switch to {'light' if is_dark else 'dark'} theme"):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -700,10 +691,10 @@ with st.sidebar:
     mobile_ctas = {"1": "Setup", "2": "Start"}
     st.markdown(f"""
     <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
-        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
+        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;"><span role="img" aria-label="Crown">👑</span></div>
         <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" target="_self" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -773,7 +764,7 @@ if page == "Dashboard":
     with c1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128202;</div>
+            <div class="metric-icon"><span role="img" aria-label="Chart">📊</span></div>
             <div class="metric-value" style="color: var(--primary-light);">{stats['total']}</div>
             <div class="metric-label">Total Tasks</div>
         </div>
@@ -782,7 +773,7 @@ if page == "Dashboard":
     with c2:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128204;</div>
+            <div class="metric-icon"><span role="img" aria-label="Pin">📌</span></div>
             <div class="metric-value" style="color: var(--info);">{stats['queued']}</div>
             <div class="metric-label">To Do</div>
         </div>
@@ -791,7 +782,7 @@ if page == "Dashboard":
     with c3:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9889;</div>
+            <div class="metric-icon"><span role="img" aria-label="Lightning">⚡</span></div>
             <div class="metric-value" style="color: var(--warning);">{stats['in_progress']}</div>
             <div class="metric-label">In Progress</div>
         </div>
@@ -800,7 +791,7 @@ if page == "Dashboard":
     with c4:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9989;</div>
+            <div class="metric-icon"><span role="img" aria-label="Check">✅</span></div>
             <div class="metric-value" style="color: var(--success);">{stats['done']}</div>
             <div class="metric-label">Completed</div>
         </div>
@@ -826,7 +817,7 @@ if page == "Dashboard":
         <div class="promo-tag">New Feature</div>
         <div class="promo-title">{hero_headlines[headline_variant]}</div>
         <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" target="_self" class="promo-cta">{hero_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -855,7 +846,7 @@ if page == "Dashboard":
         else:
             st.markdown("""
             <div class="empty-state">
-                <div class="empty-state-icon">&#128203;</div>
+                <div class="empty-state-icon"><span role="img" aria-label="Clipboard">📋</span></div>
                 <div class="empty-state-text">No tasks yet. Create your first task!</div>
             </div>
             """, unsafe_allow_html=True)
@@ -894,7 +885,7 @@ if page == "Dashboard":
                 <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
+            <a href="?page=Main+Owner+Guide" target="_self" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -989,9 +980,9 @@ elif page == "Task Board":
     col1, col2, col3 = st.columns(3)
 
     headers = {
-        "queued": ("header-todo", "&#128204; To Do", col1),
-        "in_progress": ("header-progress", "&#9889; In Progress", col2),
-        "done": ("header-done", "&#9989; Done", col3)
+        "queued": ("header-todo", '<span role="img" aria-label="Pin">📌</span> To Do', col1),
+        "in_progress": ("header-progress", '<span role="img" aria-label="Lightning">⚡</span> In Progress', col2),
+        "done": ("header-done", '<span role="img" aria-label="Check">✅</span> Done', col3)
     }
 
     for status, (css_class, label, col) in headers.items():
@@ -1002,7 +993,7 @@ elif page == "Task Board":
             if not tasks_by_status[status]:
                 st.markdown("""
                 <div class="empty-state" style="padding: 2rem 1rem;">
-                    <div style="font-size: 2rem; opacity: 0.3;">&#128466;</div>
+                    <div style="font-size: 2rem; opacity: 0.3;"><span role="img" aria-label="Folder">📁</span></div>
                     <div style="font-size: 0.85rem; color: var(--text-secondary);">No tasks</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1021,8 +1012,8 @@ elif page == "Task Board":
                     </div>
                     <div class="task-meta">
                         <span title="Task ID" style="font-family: monospace; background: var(--border); padding: 1px 4px; border-radius: 4px; font-size: 0.7rem;">{html.escape(task.get('id', ''))}</span> &middot;
-                        &#128100; {html.escape(task.get('assignee', 'Unassigned'))} &middot;
-                        &#128197; {format_date(task.get('created_at', ''))}
+                        <span role="img" aria-label="User">👤</span> {html.escape(task.get('assignee', 'Unassigned'))} &middot;
+                        <span role="img" aria-label="Calendar">📅</span> {format_date(task.get('created_at', ''))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1110,7 +1101,7 @@ elif page == "Truth Source":
                 <div class="truth-card">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <div style="font-weight: 600; color: var(--text-primary);">&#128196; {html.escape(fname)}</div>
+                            <div style="font-weight: 600; color: var(--text-primary);"><span role="img" aria-label="Document">📄</span> {html.escape(fname)}</div>
                             <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">
                                 Size: {size_str}
                             </div>
@@ -1138,7 +1129,7 @@ elif page == "Truth Source":
     else:
         st.markdown("""
         <div class="empty-state">
-            <div class="empty-state-icon">&#128218;</div>
+            <div class="empty-state-icon"><span role="img" aria-label="Books">📚</span></div>
             <div class="empty-state-text">No knowledge sources yet.</div>
             <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
                 Add your first source by scraping a URL above.
@@ -1155,7 +1146,7 @@ elif page == "Agent Logs":
     if not os.path.exists(storage.AGENTS_DIR):
         st.markdown("""
         <div class="empty-state">
-            <div class="empty-state-icon">&#128373;</div>
+            <div class="empty-state-icon"><span role="img" aria-label="Detective">🕵️</span></div>
             <div class="empty-state-text">No agent logs directory found.</div>
         </div>
         """, unsafe_allow_html=True)
@@ -1204,7 +1195,7 @@ elif page == "Agent Logs":
         else:
             st.markdown("""
             <div class="empty-state">
-                <div class="empty-state-icon">&#128373;</div>
+                <div class="empty-state-icon"><span role="img" aria-label="Detective">🕵️</span></div>
                 <div class="empty-state-text">No log files found.</div>
                 <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
                     Agent logs will appear here when agents start sessions using the SDK.
@@ -1214,7 +1205,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
