@@ -3,11 +3,16 @@ import os
 import sys
 import json
 import html
+import random
 from datetime import datetime, timezone
 
+# Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from satya.core import storage, Tasks, Scraper
+from satya.core import storage, Tasks, Scraper, get_stale_tasks
+
+# --- Constants & Configuration ---
+NAV_OPTIONS = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
 
 st.set_page_config(
     page_title="Satya - AI Agent Tracker",
@@ -16,10 +21,93 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- Utility Functions ---
+
+def log_analytics(event_name, payload=None):
+    """Mock analytics event logging."""
+    # Simple deduplication for Streamlit reruns
+    last_event = st.session_state.get("last_analytics_event")
+    last_payload = st.session_state.get("last_analytics_payload")
+
+    if last_event == event_name and last_payload == payload:
+        return None
+
+    st.session_state.last_analytics_event = event_name
+    st.session_state.last_analytics_payload = payload
+
+    now = datetime.now().isoformat()
+    log_entry = {
+        "timestamp": now,
+        "event": event_name,
+        "payload": payload or {}
+    }
+    # For demo purposes, we'll log to a file
+    os.makedirs("satya_data/analytics", exist_ok=True)
+    with open("satya_data/analytics/events.log", "a") as f:
+        f.write(json.dumps(log_entry) + "\n")
+    return log_entry
+
+def parse_iso(iso_str):
+    """Robust ISO parser that handles Z and ensures timezone awareness."""
+    if not iso_str:
+        return None
+    try:
+        # Handle cases like '2023-10-27T10:00:00+00:00Z'
+        if iso_str.endswith('Z'):
+            clean_iso = iso_str.replace('Z', '+00:00')
+        else:
+            clean_iso = iso_str
+
+        dt = datetime.fromisoformat(clean_iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except:
+        return None
+
+def format_date(iso_str):
+    """Format ISO string to human readable date."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return html.escape(str(iso_str or "N/A"))
+
+def format_time_ago(iso_str):
+    """Calculate relative time ago."""
+    dt = parse_iso(iso_str)
+    if not isinstance(dt, datetime):
+        return html.escape(str(iso_str or ""))
+
+    try:
+        diff = datetime.now(timezone.utc) - dt
+        if diff.total_seconds() < 0:
+            return "Just now"
+        if diff.days > 0:
+            return f"{diff.days}d ago"
+        hours = diff.seconds // 3600
+        if hours > 0:
+            return f"{hours}h ago"
+        minutes = diff.seconds // 60
+        return f"{minutes}m ago" if minutes > 0 else "Just now"
+    except:
+        return html.escape(str(iso_str or ""))
+
+# --- App State ---
+
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 
 is_dark = st.session_state.theme == "dark"
+
+# --- Visual Assets ---
+
+MAIN_OWNER_ICON = """
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Main Owner Icon">
+  <circle cx="32" cy="32" r="32" fill="#6C5CE7" fill-opacity="0.1"/>
+  <path d="M32 12C24.268 12 18 18.268 18 26C18 33.732 24.268 40 32 40C39.732 40 46 33.732 46 26C46 18.268 39.732 12 32 12ZM32 16C37.523 16 42 20.477 42 26C42 31.523 37.523 36 32 36C26.477 36 22 31.523 22 26C22 20.477 26.477 16 32 16ZM32 42C23.163 42 16 49.163 16 58H48C48 49.163 40.837 42 32 42Z" fill="#6C5CE7"/>
+  <path d="M32 32L36 36L44 28" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+"""
 
 DARK_VARS = """
 :root {
@@ -356,38 +444,21 @@ div[data-testid="stExpander"] {{
     line-height: 1.6;
 }}
 
-.endpoint-row {{
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0;
-    border-bottom: 1px solid var(--border);
-}}
-
-.endpoint-row:last-child {{
-    border-bottom: none;
-}}
-
-.method-badge {{
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 0.5px;
-}}
-
-.method-post {{ background: rgba(0,184,148,0.2); color: #00B894; }}
-.method-get {{ background: rgba(116,185,255,0.2); color: #74B9FF; }}
-.method-put {{ background: rgba(253,203,110,0.2); color: #FDCB6E; }}
-.method-delete {{ background: rgba(225,112,85,0.2); color: #E17055; }}
-
 /* Promo & Main Owner Styles */
+:root {{
+    --card-radius: 16px;
+    --card-padding-lg: 2rem;
+    --card-padding-md: 1.25rem;
+    --card-padding-sm: 1rem;
+    --card-gap: 1.5rem;
+    --transition-speed: 0.3s;
+}}
+
 .promo-card {{
-    border-radius: 16px;
-    transition: all 0.3s ease;
+    border-radius: var(--card-radius);
+    transition: all var(--transition-speed) ease;
     cursor: pointer;
+    text-decoration: none !important;
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
@@ -401,11 +472,15 @@ div[data-testid="stExpander"] {{
     box-shadow: 0 12px 24px var(--shadow-color);
 }}
 
+.promo-card:active {{
+    transform: translateY(-2px) scale(0.98);
+}}
+
 .hero-card {{
-    background: linear-gradient(135deg, #6C5CE7 0%, #5A4BD1 100%);
-    padding: 2rem;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    padding: var(--card-padding-lg);
     color: white;
-    min-height: 200px;
+    min-height: 240px;
     justify-content: center;
 }}
 
@@ -431,22 +506,22 @@ div[data-testid="stExpander"] {{
     font-weight: 700;
     font-size: 0.9rem;
     text-align: center;
-    text-decoration: none;
+    text-decoration: none !important;
     transition: background 0.2s;
 }}
 
 .hero-card .card-cta {{
     background: white;
-    color: #6C5CE7 !important;
+    color: var(--primary) !important;
 }}
 
 .hero-card .card-cta:hover {{
-    background: #F0F0F8;
+    background: var(--bg-card-hover);
 }}
 
 .compact-card {{
     background: var(--bg-card);
-    padding: 1.25rem;
+    padding: var(--card-padding-md);
     flex-direction: row;
     align-items: center;
     gap: 1rem;
@@ -458,10 +533,15 @@ div[data-testid="stExpander"] {{
     flex-shrink: 0;
 }}
 
+.compact-card .card-content {{
+    flex-grow: 1;
+}}
+
 .compact-card .card-headline {{
     font-size: 1.1rem;
     font-weight: 700;
     margin-bottom: 0.25rem;
+    color: var(--text-primary);
 }}
 
 .compact-card .card-body {{
@@ -469,27 +549,29 @@ div[data-testid="stExpander"] {{
     color: var(--text-secondary);
 }}
 
-.compact-card .card-cta {{
+.compact-card .card-cta, .mobile-tile .card-cta {{
     background: var(--primary);
     color: white !important;
 }}
 
 .mobile-tile {{
     background: var(--bg-card);
-    padding: 1rem;
+    padding: var(--card-padding-sm);
     text-align: center;
     aspect-ratio: 1 / 1;
     justify-content: space-between;
 }}
 
+.mobile-tile .card-icon {{
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 0.5rem;
+}}
+
 .mobile-tile .card-headline {{
     font-size: 0.95rem;
     font-weight: 700;
-}}
-
-.mobile-tile .card-cta {{
-    background: var(--primary);
-    color: white !important;
+    color: var(--text-primary);
 }}
 
 .step-card {{
@@ -529,13 +611,11 @@ div[data-testid="stExpander"] {{
 
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-
 @st.cache_resource
 def get_managers():
     return Tasks(), Scraper()
 
 tasks_manager, scraper_manager = get_managers()
-
 
 def get_priority_badge(priority):
     p = html.escape((priority or "Medium").lower())
@@ -544,70 +624,18 @@ def get_priority_badge(priority):
 def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
 
-def parse_iso(iso_str):
-    """Robust ISO parser that handles Z and ensures timezone awareness."""
-    if not iso_str:
-        return None
-    try:
-        # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+# --- Click Tracking & Analytics Handler ---
+# Process query params before sidebar or main content
+query_params = st.query_params
+if "clicked_promo" in query_params:
+    clicked_v = query_params.get("v", "N/A")
+    log_analytics("main_owner_promo_click", {"variant": clicked_v})
+    # Remove tracking param and rerun to clean URL
+    st.query_params.clear()
+    st.query_params.update({"page": "Main Owner Guide"})
+    st.rerun()
 
-        dt = datetime.fromisoformat(clean_iso)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except:
-        return html.escape(str(iso_str or "N/A"))
-
-def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
-        return html.escape(str(iso_str or ""))
-
-    now = datetime.now(timezone.utc)
-    diff = now - dt
-    seconds = int(diff.total_seconds())
-
-    if seconds < 0:
-        return "Just now"
-    if seconds < 60:
-        return f"{seconds}s ago"
-    if seconds < 3600:
-        return f"{seconds // 60}m ago"
-    if seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    if diff.days < 30:
-        return f"{diff.days}d ago"
-    if diff.days < 365:
-        return f"{diff.days // 30}mo ago"
-    return f"{diff.days // 365}y ago"
-
-
+# --- Sidebar ---
 with st.sidebar:
     st.markdown("""
     <div class="sidebar-brand">
@@ -618,20 +646,23 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Handle Navigation via Query Parameters
-    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
-    query_params = st.query_params
+    # Navigation Logic
     default_index = 0
     if "page" in query_params:
         target_page = query_params["page"].replace("+", " ")
-        if target_page in nav_options:
-            default_index = nav_options.index(target_page)
+        if target_page in NAV_OPTIONS:
+            default_index = NAV_OPTIONS.index(target_page)
+    elif "current_page" in st.session_state:
+        if st.session_state.current_page in NAV_OPTIONS:
+            default_index = NAV_OPTIONS.index(st.session_state.current_page)
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        NAV_OPTIONS,
+        index=default_index,
         label_visibility="collapsed"
     )
+    st.session_state.current_page = page
 
     st.markdown("---")
 
@@ -684,27 +715,31 @@ with st.sidebar:
 
     st.markdown("---")
 
-    theme_label = "Switch to Light" if is_dark else "Switch to Dark"
-    theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
     if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
     st.markdown("---")
 
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    # A/B Testing Variant Selection
+    if "promo_variant" not in st.session_state:
+        st.session_state.promo_variant = random.choice(["A", "B"])
+    if "cta_variant" not in st.session_state:
+        st.session_state.cta_variant = random.choice(["1", "2"])
 
-    mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
-    mobile_ctas = {"1": "Setup", "2": "Start"}
+    variant = st.session_state.promo_variant
+    cta_v = st.session_state.cta_variant
+
+    mobile_headlines = {"A": "Main Owner Setup", "B": "Control Center"}
+    mobile_ctas = {"1": "Start", "2": "Unlock"}
+
+    log_analytics("main_owner_promo_view", {"card_size": "mobile", "variant": f"{variant}{cta_v}"})
     st.markdown(f"""
-    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
-        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
-        <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
-        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
-    </div>
+    <a href="?page=Main+Owner+Guide&clicked_promo=true&v={variant}{cta_v}" class="promo-card mobile-tile" style="margin: 0.5rem;" aria-label="{mobile_headlines[variant]} - {mobile_ctas[cta_v]}">
+        <div class="card-icon">{MAIN_OWNER_ICON}</div>
+        <div class="card-headline">{mobile_headlines[variant]}</div>
+        <div class="card-cta">{mobile_ctas[cta_v]}</div>
+    </a>
     """, unsafe_allow_html=True)
 
     st.markdown("""
@@ -716,30 +751,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-def log_analytics(event_name, payload=None):
-    """Mock analytics event logging."""
-    # Simple deduplication for Streamlit reruns
-    last_event = st.session_state.get("last_analytics_event")
-    last_payload = st.session_state.get("last_analytics_payload")
-
-    if last_event == event_name and last_payload == payload:
-        return None
-
-    st.session_state.last_analytics_event = event_name
-    st.session_state.last_analytics_payload = payload
-
-    now = datetime.now().isoformat()
-    log_entry = {
-        "timestamp": now,
-        "event": event_name,
-        "payload": payload or {}
-    }
-    # For demo purposes, we'll log to a file
-    os.makedirs("satya_data/analytics", exist_ok=True)
-    with open("satya_data/analytics/events.log", "a") as f:
-        f.write(json.dumps(log_entry) + "\n")
-    return log_entry
-
+# --- Page Routing ---
 
 # ─── DASHBOARD PAGE ─────────────────────────────────────
 if page == "Dashboard":
@@ -748,20 +760,21 @@ if page == "Dashboard":
     st.markdown('<div class="page-subtitle">Overview of your AI agent operations and task progress</div>', unsafe_allow_html=True)
 
     # Main Owner Promo Hero Card
-    st.markdown("""
-    <div class="promo-card hero-card">
-        <div class="card-headline">Master Your AI Fleet</div>
+    variant = st.session_state.promo_variant
+    cta_v = st.session_state.cta_variant
+
+    hero_headlines = {"A": "Master Your AI Fleet", "B": "Unified Control Starts Here"}
+    hero_ctas = {"1": "Set Main Owner", "2": "Start Onboarding"}
+
+    log_analytics("main_owner_promo_view", {"card_size": "hero", "variant": f"{variant}{cta_v}"})
+    st.markdown(f"""
+    <a href="?page=Main+Owner+Guide&clicked_promo=true&v={variant}{cta_v}" class="promo-card hero-card" aria-label="{hero_headlines[variant]} - {hero_ctas[cta_v]}">
+        <div class="card-headline">{hero_headlines[variant]}</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
-        <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
-        </div>
-    </div>
+        <div class="card-cta">{hero_ctas[cta_v]}</div>
+    </a>
     """, unsafe_allow_html=True)
 
-    from satya.core import get_stale_tasks
-    # ⚡ Bolt Optimization:
-    # We already fetched all_tasks via tasks_manager.list_all().
-    # Passing them here prevents N+1 file reads, drastically speeding up the render.
     stale = get_stale_tasks(all_tasks)
     if stale:
         st.warning(f"⚠️ {len(stale)} stale task(s) detected — agent may be stuck")
@@ -807,28 +820,6 @@ if page == "Dashboard":
         """, unsafe_allow_html=True)
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
-
-    hero_headlines = {
-        "A": "Command Your Mission: Meet the Main Owner",
-        "B": "Single Source of Truth, Single Point of Authority"
-    }
-    hero_ctas = {
-        "1": "Setup Main Owner",
-        "2": "Start Leading Now"
-    }
-
-    st.markdown(f"""
-    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
-        <div class="promo-tag">New Feature</div>
-        <div class="promo-title">{hero_headlines[headline_variant]}</div>
-        <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
-    </div>
-    """, unsafe_allow_html=True)
 
     col_left, col_right = st.columns([3, 2])
 
@@ -885,17 +876,19 @@ if page == "Dashboard":
         </div>
         """, unsafe_allow_html=True)
 
-        compact_headlines = {"A": "Unlock Main Owner", "B": "Enable Priority Ownership"}
-        compact_ctas = {"1": "Get Started", "2": "Enable Now"}
+        compact_headlines = {"A": "Secure Your Workspace", "B": "Enable Owner Oversight"}
+        compact_ctas = {"1": "Setup Now", "2": "View Guide"}
 
+        log_analytics("main_owner_promo_view", {"card_size": "compact", "variant": f"{variant}{cta_v}"})
         st.markdown(f"""
-        <div class="promo-card promo-compact">
-            <div>
-                <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
+        <a href="?page=Main+Owner+Guide&clicked_promo=true&v={variant}{cta_v}" class="promo-card compact-card" aria-label="{compact_headlines[variant]} - {compact_ctas[cta_v]}">
+            <div class="card-icon">{MAIN_OWNER_ICON}</div>
+            <div class="card-content">
+                <div class="card-headline">{compact_headlines[variant]}</div>
+                <div class="card-body">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
-        </div>
+            <div class="card-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_v]}</div>
+        </a>
         """, unsafe_allow_html=True)
 
         if stats["total"] > 0:
@@ -907,15 +900,6 @@ if page == "Dashboard":
             })
             st.bar_chart(chart_data, x="Status", y="Count", color="#6C5CE7", height=200)
 
-        if agent_metrics:
-            st.markdown("#### Agent Performance")
-            agent_data = []
-            for agent, data in agent_metrics.items():
-                agent_data.append({"Agent": agent, "Completed": data["completed"], "In Progress": data["in_progress"]})
-
-            df_agents = pd.DataFrame(agent_data)
-            st.bar_chart(df_agents, x="Agent", y=["Completed", "In Progress"], height=200)
-
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
     st.markdown("#### Audit Trail (Governance)")
     # Extract audit trails across all tasks and sort by timestamp
@@ -923,15 +907,12 @@ if page == "Dashboard":
     for task in all_tasks:
         audit_trail = task.get("audit_trail", [])
         for event in audit_trail:
-            # add task title to the event for display
             event_copy = event.copy()
             event_copy["task_title"] = task.get("title", "Unknown Task")
             audit_events.append(event_copy)
 
     if audit_events:
-        # Sort newest first
         audit_events.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
-        # Display top 10
         for event in audit_events[:10]:
             ts = format_date(event.get('timestamp', ''))
             agent = event.get('agent', 'System')
@@ -1030,27 +1011,23 @@ elif page == "Task Board":
                 btn_cols = st.columns(3)
 
                 if status == "queued":
-                    if btn_cols[1].button("Start", key=f"start_{task['id']}", use_container_width=True, help="Move task to In Progress"):
+                    if btn_cols[1].button("Start", key=f"start_{task['id']}", use_container_width=True):
                         tasks_manager.update_task_status(task['id'], "in_progress")
                         st.rerun()
-                    if btn_cols[2].button("Delete", key=f"del_todo_{task['id']}", use_container_width=True, help="Permanently delete this task"):
+                    if btn_cols[2].button("Delete", key=f"del_todo_{task['id']}", use_container_width=True):
                         tasks_manager.delete_task(task['id'])
                         st.rerun()
 
                 elif status == "in_progress":
-                    # Cannot move back to queued legally in the data model
-                    if btn_cols[1].button("Done", key=f"done_{task['id']}", use_container_width=True, help="Mark task as Completed"):
-                        try:
-                            tasks_manager.update_task_status(task['id'], "done")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(str(e))
-                    if btn_cols[2].button("Delete", key=f"del_prog_{task['id']}", use_container_width=True, help="Permanently delete this task"):
+                    if btn_cols[1].button("Done", key=f"done_{task['id']}", use_container_width=True):
+                        tasks_manager.update_task_status(task['id'], "done")
+                        st.rerun()
+                    if btn_cols[2].button("Delete", key=f"del_prog_{task['id']}", use_container_width=True):
                         tasks_manager.delete_task(task['id'])
                         st.rerun()
 
                 elif status == "done":
-                    if btn_cols[2].button("Delete", key=f"del_done_{task['id']}", use_container_width=True, help="Permanently delete this task"):
+                    if btn_cols[2].button("Delete", key=f"del_done_{task['id']}", use_container_width=True):
                         tasks_manager.delete_task(task['id'])
                         st.rerun()
 
@@ -1058,11 +1035,7 @@ elif page == "Task Board":
                     comments = task.get("comments", [])
                     if comments:
                         for c in reversed(comments):
-                            try:
-                                ts_obj = datetime.fromisoformat(c.get("timestamp", ""))
-                                ts_str = ts_obj.strftime("%H:%M:%S")
-                            except ValueError:
-                                ts_str = html.escape(str(c.get("timestamp", "")))
+                            ts_str = format_time_ago(c.get("timestamp", ""))
                             txt = html.escape(c.get("text", ""))
                             st.markdown(f"<div style='font-size: 0.8rem; margin-bottom: 0.4rem; border-left: 2px solid var(--border); padding-left: 0.5rem;'><span style='color: var(--text-secondary);'>{ts_str}</span> {txt}</div>", unsafe_allow_html=True)
                     else:
@@ -1087,7 +1060,7 @@ elif page == "Truth Source":
                             st.success(f"Saved as: {filename}")
                             st.rerun()
                         else:
-                            st.error("Failed to scrape URL. Please check the URL and try again.")
+                            st.error("Failed to scrape URL.")
                 else:
                     st.warning("Please enter a URL.")
 
@@ -1126,7 +1099,7 @@ elif page == "Truth Source":
 
         st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-        selected_file = st.selectbox("View Source Content", files, label_visibility="collapsed", placeholder="Select a file to preview...")
+        selected_file = st.selectbox("View Source Content", files, label_visibility="collapsed")
         if selected_file:
             safe_selected_file = os.path.basename(selected_file)
             file_path = os.path.join(storage.TRUTH_DIR, safe_selected_file)
@@ -1140,9 +1113,6 @@ elif page == "Truth Source":
         <div class="empty-state">
             <div class="empty-state-icon">&#128218;</div>
             <div class="empty-state-text">No knowledge sources yet.</div>
-            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                Add your first source by scraping a URL above.
-            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1153,23 +1123,12 @@ elif page == "Agent Logs":
     st.markdown('<div class="page-subtitle">Monitor autonomous agent activity and session history</div>', unsafe_allow_html=True)
 
     if not os.path.exists(storage.AGENTS_DIR):
-        st.markdown("""
-        <div class="empty-state">
-            <div class="empty-state-icon">&#128373;</div>
-            <div class="empty-state-text">No agent logs directory found.</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("<div class='empty-state'>No logs directory.</div>", unsafe_allow_html=True)
     else:
         log_files = [f for f in os.listdir(storage.AGENTS_DIR) if f.endswith(".log")]
 
         if log_files:
-            log_files.sort(
-                key=lambda x: os.path.getmtime(os.path.join(storage.AGENTS_DIR, x)),
-                reverse=True
-            )
-
-            st.markdown(f"#### Active Sessions ({len(log_files)} logs)")
-
+            log_files.sort(key=lambda x: os.path.getmtime(os.path.join(storage.AGENTS_DIR, x)), reverse=True)
             col_sel, col_ref = st.columns([4, 1])
             with col_sel:
                 selected_log = st.selectbox("Select Log", log_files, label_visibility="collapsed")
@@ -1180,43 +1139,30 @@ elif page == "Agent Logs":
             if selected_log:
                 safe_selected_log = os.path.basename(selected_log)
                 log_path = os.path.join(storage.AGENTS_DIR, safe_selected_log)
-
-                mod_time = datetime.fromtimestamp(os.path.getmtime(log_path))
                 file_size = os.path.getsize(log_path)
-
-                c1, c2, c3 = st.columns(3)
-                agent_name = selected_log.rsplit("_", 1)[0] if "_" in selected_log else selected_log
-                c1.metric("Agent", agent_name)
-                c2.metric("Last Modified", mod_time.strftime("%b %d, %H:%M"))
-                c3.metric("Size", f"{file_size / 1024:.1f} KB" if file_size > 1024 else f"{file_size} B")
-
-                st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
                 with open(log_path, 'r') as f:
                     log_content = f.read()
 
                 lines = log_content.strip().split('\n')
-
                 with st.container(border=True):
                     for line in lines:
                         if line.strip():
                             st.markdown(f'<div class="log-entry">{html.escape(line)}</div>', unsafe_allow_html=True)
         else:
-            st.markdown("""
-            <div class="empty-state">
-                <div class="empty-state-icon">&#128373;</div>
-                <div class="empty-state-text">No log files found.</div>
-                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                    Agent logs will appear here when agents start sessions using the SDK.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("<div class='empty-state'>No log files found.</div>", unsafe_allow_html=True)
 
 
-# ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
-    st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
+# ─── MAIN OWNER GUIDE PAGE ──────────────────────────────
+elif page == "Main Owner Guide":
+    log_analytics("main_owner_setup_start")
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+        <div style="width: 48px; height: 48px;">{MAIN_OWNER_ICON}</div>
+        <div class="hero-header" style="margin-bottom: 0;">Main Owner Guide</div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Take command of your AI workforce: Designate a Main Owner for unified oversight, master permissions, and central governance.</div>', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="api-section">
@@ -1225,7 +1171,7 @@ elif page == "Main Owner":
             The Main Owner feature empowers you to take full control of your Satya environment. By designating a primary administrator,
             you gain a single source of truth for agent sessions, knowledge bases, and compliance rules. This centralized role
             streamlines multi-agent coordination, ensures consistent governance across all tasks, and provides the ultimate fallback
-            for session management.
+            for session management, making it essential for scaling your AI operations securely and efficiently.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1255,9 +1201,12 @@ elif page == "Main Owner":
         <div class="step-card">
             <div class="step-number">3</div>
             <div class="step-title">Confirm & Lock</div>
-            <div class="step-desc">Review the master permissions and click 'Finalize Setup' to lock the identity and enable oversight.</div>
+            <div class="step-desc">Review the master permissions and click 'Finalize Setup' to lock the Main Owner identity and enable centralized oversight.</div>
         </div>
         """, unsafe_allow_html=True)
+        if st.button("Finalize Setup", use_container_width=True):
+            log_analytics("main_owner_setup_complete")
+            st.success("Main Owner setup finalized!")
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
@@ -1266,11 +1215,11 @@ elif page == "Main Owner":
     with col_faq:
         st.markdown("#### Frequently Asked Questions")
         faqs = [
-            ("What is a Main Owner?", "The Main Owner is the primary human administrator who holds master permissions over all AI agent sessions, truth sources, and governance rules."),
-            ("Can there be more than one Main Owner?", "No, Satya enforces a single-owner model for absolute accountability."),
-            ("What happens if the Main Owner is unavailable?", "We recommend storing credentials in a secure vault. Ownership can be transferred through a verified recovery process."),
-            ("Does this affect agent performance?", "No, it is a governance layer. Agents continue to operate autonomously but with clearer boundaries."),
-            ("Is the setup reversible?", "Yes, but it requires high-level confirmation and an audit trail entry to ensure security.")
+            ("What is a Main Owner?", "The Main Owner is the primary human administrator who holds master permissions over all AI agent sessions, truth sources, and governance rules within a Satya workspace."),
+            ("Can there be more than one Main Owner?", "No, Satya enforces a single-owner model for absolute accountability, but the Main Owner can delegate specific tasks to other human observers."),
+            ("What happens if the Main Owner is unavailable?", "We recommend storing the Main Owner's credentials in a secure, shared vault. In enterprise setups, ownership can be transferred through a verified recovery process."),
+            ("Does the Main Owner feature affect agent performance?", "No, it is a governance and oversight layer. Your agents will continue to operate autonomously, but with clearer boundaries and centralized logging."),
+            ("Is the Main Owner setup reversible?", "Yes, but it requires a high-level confirmation and an audit trail entry to ensure the security and integrity of your tracked AI operations.")
         ]
         for q, a in faqs:
             with st.expander(q):
@@ -1280,10 +1229,10 @@ elif page == "Main Owner":
         st.markdown("#### What to Expect")
         checklist = [
             "Centralized dashboard for all agent activity.",
-            "Master control over Truth Source additions.",
-            "Enforced governance rules across all agents.",
-            "Unified audit trail for every status change.",
-            "Priority support for owner interventions."
+            "Master control over Truth Source (knowledge base) additions.",
+            "Enforced governance rules across all connected agents.",
+            "Unified audit trail for every status change and task update.",
+            "Priority support for owner-initiated session interventions."
         ]
         for item in checklist:
             st.markdown(f"&check; {item}")
@@ -1293,15 +1242,20 @@ elif page == "Main Owner":
         st.markdown("""
         <div class="code-block" style="font-size: 0.75rem;">
 // Analytics Events
+- main_owner_promo_view
+- main_owner_promo_click
 - main_owner_setup_start
 - main_owner_setup_complete
 
 // Sample Payload
 {
-  "event": "main_owner_setup_start",
+  "event": "main_owner_promo_click",
   "properties": {
-    "source": "onboarding_page",
-    "timestamp": "2026-02-07T..."
+    "card_size": "hero",
+    "variant": "A",
+    "headline": "Master Your AI Fleet",
+    "cta": "Set Main Owner",
+    "location": "dashboard_top"
   }
 }
         </div>
@@ -1313,39 +1267,19 @@ elif page == "SDK Docs":
     st.markdown('<div class="hero-header">SDK Documentation</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Integration guide for AI agents to self-deploy, operate, and report progress through Satya</div>', unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class="api-section" style="border-left: 4px solid var(--primary); padding-left: 1.5rem;">
-        <h4 style="color: var(--primary-light);">How Satya Works</h4>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.7;">
-            <strong style="color: var(--text-primary);">AI agents deploy and operate Satya.</strong> They install dependencies, start the dashboard, create tasks,
-            log progress, and scrape knowledge &mdash; all programmatically via the SDK below.<br><br>
-            <strong style="color: var(--text-primary);">Humans only observe.</strong> They open this dashboard URL in a browser to monitor tasks, read logs,
-            and review the knowledge base. No terminal, no code &mdash; just a web page.<br><br>
-            <strong style="color: var(--text-primary);">See <code>AGENTS.md</code></strong> in the repo root for the complete deployment manual written directly for AI agents.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-
     st.markdown("""
     <div class="api-section">
         <h4>Quick Start (For AI Agents)</h4>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
-            AI agents: add the <code>src/</code> directory to your Python path, import the SDK, and start reporting your work. The human will see everything on this dashboard automatically.
-        </p>
         <div class="code-block">import sys
 sys.path.insert(0, "src")
 import satya.sdk as satya
 
 client = satya.init(agent_name="my_agent")
-
 task = satya.create_task("Build login page", "Implement OAuth2 login flow")
 satya.log("Starting work on login page...")
 satya.update_task(task["id"], "In Progress")
 satya.scrape("https://docs.example.com/oauth2")
 satya.update_task(task["id"], "Done")
-satya.log("Login page complete")
 client.flush_logs()</div>
     </div>
     """, unsafe_allow_html=True)
@@ -1353,13 +1287,12 @@ client.flush_logs()</div>
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     st.markdown("#### SDK Functions")
-
     funcs = [
-        ("satya.init(agent_name, repo_path='.')", "Initialize the SDK client. Must be called first. Creates a log file in satya_data/agents/."),
-        ("satya.create_task(title, description)", "Create a new task in 'To Do' status. Returns task dict with id, title, status, etc."),
-        ("satya.update_task(task_id, status)", "Update a task's status. Valid statuses: 'To Do', 'In Progress', 'Done'."),
-        ("satya.log(message)", "Write a timestamped log entry to the agent's session log file."),
-        ("satya.scrape(url)", "Scrape a URL, convert to Markdown, and save to the Truth Source knowledge base."),
+        ("satya.init(agent_name, repo_path='.')", "Initialize the SDK client."),
+        ("satya.create_task(title, description)", "Create a new task in 'To Do' status."),
+        ("satya.update_task(task_id, status)", "Update a task's status."),
+        ("satya.log(message)", "Write a timestamped log entry."),
+        ("satya.scrape(url)", "Scrape a URL and save to Truth Source."),
     ]
 
     for func_sig, func_desc in funcs:
@@ -1373,81 +1306,6 @@ client.flush_logs()</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-
-    st.markdown("#### Governance Rules")
-
-    st.markdown(f"""
-    <div class="api-section">
-        <p style="color: var(--text-secondary); font-size: 0.9rem;">
-            Satya includes an enterprise governance layer to enforce high-quality multi-agent coordination:
-        </p>
-        <ul style="color: var(--text-primary); font-size: 0.85rem; line-height: 1.6;">
-            <li><strong>Audit Trails:</strong> Every creation, status change, comment, and update is permanently recorded per task, tied to the agent's name.</li>
-            <li><strong>Descriptive Tasks:</strong> Tasks cannot be created with less than 10 characters of description.</li>
-            <li><strong>Proof of Work:</strong> An agent cannot mark a task as <code>"Done"</code> without providing at least one log entry explaining their progress.</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-
-    st.markdown("#### Data Storage")
-
-    st.markdown(f"""
-    <div class="api-section">
-        <p style="color: var(--text-secondary); font-size: 0.9rem;">
-            All data is stored as flat files under <code>satya_data/</code>. No database required.
-        </p>
-        <div class="code-block">satya_data/
-  tasks/          # JSON files, one per task (e.g., a344b224.json)
-  truth/          # Markdown files from web scraping
-  agents/         # Log files per agent session</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-
-    st.markdown("#### Full Agent Example")
-
-    st.markdown(f"""
-    <div class="api-section">
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
-            Complete session showing how an AI agent deploys Satya, creates tasks, logs progress, and scrapes knowledge &mdash; while the human monitors everything from this dashboard:
-        </p>
-        <div class="code-block">import sys
-sys.path.insert(0, "src")
-import satya.sdk as satya
-
-# 1. Initialize agent session
-client = satya.init(agent_name="coder_bot")
-satya.log("Agent session started")
-
-# 2. Create tasks for the work to be done
-task = client.create_task(
-    "Implement user auth",
-    "Add JWT-based authentication with refresh tokens"
-)
-satya.log(f"Created task: {{task['id']}}")
-
-# 3. Start working on a task
-client.update_task(task["id"], "In Progress")
-satya.log("Working on auth implementation...")
-
-# 4. Scrape reference docs into knowledge base
-client.scrape_url("https://jwt.io/introduction")
-satya.log("Scraped JWT docs for reference")
-
-# 5. Mark task complete
-client.update_task(task["id"], "Done")
-satya.log("Auth implementation complete")
-
-# 6. Flush logs to ensure they are persisted
-client.flush_logs()</div>
-    </div>
-    """, unsafe_allow_html=True)
-
 
 st.markdown("""
 <div class="footer-text">
