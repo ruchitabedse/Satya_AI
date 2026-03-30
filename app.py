@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from satya.core import storage, Tasks, Scraper
 
+NAV_OPTIONS = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
+
 st.set_page_config(
     page_title="Satya - AI Agent Tracker",
     layout="wide",
@@ -401,6 +403,10 @@ div[data-testid="stExpander"] {{
     box-shadow: 0 12px 24px var(--shadow-color);
 }}
 
+.promo-card:active {{
+    transform: translateY(0) scale(0.98);
+}}
+
 .hero-card {{
     background: linear-gradient(135deg, #6C5CE7 0%, #5A4BD1 100%);
     padding: 2rem;
@@ -562,35 +568,20 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    """Formats an ISO string to 'Oct 27, 2023'."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return dt
+
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
+    """Relative time formatter using parse_iso for consistency."""
+    dt = parse_iso(iso_str)
+    if not isinstance(dt, datetime):
+        return dt if dt else ""
 
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
-        return html.escape(str(iso_str or ""))
-
-    now = datetime.now(timezone.utc)
-    diff = now - dt
+    diff = datetime.now(timezone.utc) - dt
     seconds = int(diff.total_seconds())
 
     if seconds < 0:
@@ -619,17 +610,17 @@ with st.sidebar:
     st.markdown("---")
 
     # Handle Navigation via Query Parameters
-    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
     query_params = st.query_params
     default_index = 0
     if "page" in query_params:
         target_page = query_params["page"].replace("+", " ")
-        if target_page in nav_options:
-            default_index = nav_options.index(target_page)
+        if target_page in NAV_OPTIONS:
+            default_index = NAV_OPTIONS.index(target_page)
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        NAV_OPTIONS,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -693,17 +684,22 @@ with st.sidebar:
     st.markdown("---")
 
     # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    if "headline_variant" not in st.session_state:
+        st.session_state.headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
+    if "cta_variant" not in st.session_state:
+        st.session_state.cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+
+    headline_variant = st.session_state.headline_variant
+    cta_variant = st.session_state.cta_variant
 
     mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
     mobile_ctas = {"1": "Setup", "2": "Start"}
     st.markdown(f"""
-    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
+    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;" title="Designate identity and lock permissions">
         <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
         <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" target="_self" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -749,11 +745,11 @@ if page == "Dashboard":
 
     # Main Owner Promo Hero Card
     st.markdown("""
-    <div class="promo-card hero-card">
+    <div class="promo-card hero-card" title="Open the Main Owner onboarding guide">
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" target="_self" class="card-cta">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -809,8 +805,8 @@ if page == "Dashboard":
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    headline_variant = st.session_state.headline_variant
+    cta_variant = st.session_state.cta_variant
 
     hero_headlines = {
         "A": "Command Your Mission: Meet the Main Owner",
@@ -822,11 +818,11 @@ if page == "Dashboard":
     }
 
     st.markdown(f"""
-    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
+    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'" title="Learn about centralized governance">
         <div class="promo-tag">New Feature</div>
         <div class="promo-title">{hero_headlines[headline_variant]}</div>
         <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" target="_self" class="promo-cta">{hero_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -889,12 +885,12 @@ if page == "Dashboard":
         compact_ctas = {"1": "Get Started", "2": "Enable Now"}
 
         st.markdown(f"""
-        <div class="promo-card promo-compact">
+        <div class="promo-card promo-compact" title="Secure your agent workspace">
             <div>
                 <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
+            <a href="?page=Main+Owner+Guide" target="_self" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1214,7 +1210,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
