@@ -549,11 +549,14 @@ def parse_iso(iso_str):
     if not iso_str:
         return None
     try:
-        # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        # Handle cases like '2023-10-27T10:00:00+00:00Z' or '2023-10-27T10:00:00Z'
+        clean_iso = str(iso_str)
+        if clean_iso.endswith('Z'):
+            # If it already has an offset like +00:00Z, remove the Z
+            if '+' in clean_iso[:-1] or '-' in clean_iso.split('T')[-1][:-1]:
+                clean_iso = clean_iso[:-1]
+            else:
+                clean_iso = clean_iso.replace('Z', '+00:00')
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
@@ -562,14 +565,23 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    """Format an ISO date string to a human-readable format like 'Oct 27, 2023'."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime('%b %d, %Y')
+    return dt
+
 def format_time_ago(iso_str):
     try:
         # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
+        clean_iso = str(iso_str)
         if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
+            # If it already has an offset like +00:00Z, remove the Z
+            if '+' in clean_iso[:-1] or '-' in clean_iso.split('T')[-1][:-1]:
+                clean_iso = clean_iso[:-1]
+            else:
+                clean_iso = clean_iso.replace('Z', '+00:00')
 
         dt = datetime.fromisoformat(clean_iso)
 
@@ -686,7 +698,7 @@ with st.sidebar:
 
     theme_label = "Switch to Light" if is_dark else "Switch to Dark"
     theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True, help="Toggle between light and dark themes"):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
