@@ -67,6 +67,14 @@ LIGHT_VARS = """
 
 THEME_VARS = DARK_VARS if is_dark else LIGHT_VARS
 
+MAIN_OWNER_ICON = """
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="32" cy="32" r="32" fill="#6C5CE7" fill-opacity="0.1"/>
+  <path d="M32 12C24.268 12 18 18.268 18 26C18 33.732 24.268 40 32 40C39.732 40 46 33.732 46 26C46 18.268 39.732 12 32 12ZM32 16C37.523 16 42 20.477 42 26C42 31.523 37.523 36 32 36C26.477 36 22 31.523 22 26C22 20.477 26.477 16 32 16ZM32 42C23.163 42 16 49.163 16 58H48C48 49.163 40.837 42 32 42Z" fill="#6C5CE7"/>
+  <path d="M32 32L36 36L44 28" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+"""
+
 CUSTOM_CSS = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -384,10 +392,20 @@ div[data-testid="stExpander"] {{
 .method-delete {{ background: rgba(225,112,85,0.2); color: #E17055; }}
 
 /* Promo & Main Owner Styles */
+:root {{
+    --card-radius: 16px;
+    --card-padding-lg: 2rem;
+    --card-padding-md: 1.25rem;
+    --card-padding-sm: 1rem;
+    --card-gap: 1.5rem;
+    --transition-speed: 0.3s;
+}}
+
 .promo-card {{
-    border-radius: 16px;
-    transition: all 0.3s ease;
+    border-radius: var(--card-radius);
+    transition: all var(--transition-speed) ease;
     cursor: pointer;
+    text-decoration: none;
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
@@ -401,11 +419,15 @@ div[data-testid="stExpander"] {{
     box-shadow: 0 12px 24px var(--shadow-color);
 }}
 
+.promo-card:active {{
+    transform: translateY(-2px);
+}}
+
 .hero-card {{
-    background: linear-gradient(135deg, #6C5CE7 0%, #5A4BD1 100%);
-    padding: 2rem;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    padding: var(--card-padding-lg);
     color: white;
-    min-height: 200px;
+    min-height: 240px;
     justify-content: center;
 }}
 
@@ -424,29 +446,9 @@ div[data-testid="stExpander"] {{
     color: white !important;
 }}
 
-.card-cta {{
-    display: inline-block;
-    padding: 0.6rem 1.2rem;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 0.9rem;
-    text-align: center;
-    text-decoration: none;
-    transition: background 0.2s;
-}}
-
-.hero-card .card-cta {{
-    background: white;
-    color: #6C5CE7 !important;
-}}
-
-.hero-card .card-cta:hover {{
-    background: #F0F0F8;
-}}
-
 .compact-card {{
     background: var(--bg-card);
-    padding: 1.25rem;
+    padding: var(--card-padding-md);
     flex-direction: row;
     align-items: center;
     gap: 1rem;
@@ -456,6 +458,10 @@ div[data-testid="stExpander"] {{
     width: 48px;
     height: 48px;
     flex-shrink: 0;
+}}
+
+.compact-card .card-content {{
+    flex-grow: 1;
 }}
 
 .compact-card .card-headline {{
@@ -469,17 +475,18 @@ div[data-testid="stExpander"] {{
     color: var(--text-secondary);
 }}
 
-.compact-card .card-cta {{
-    background: var(--primary);
-    color: white !important;
-}}
-
 .mobile-tile {{
     background: var(--bg-card);
-    padding: 1rem;
+    padding: var(--card-padding-sm);
     text-align: center;
     aspect-ratio: 1 / 1;
     justify-content: space-between;
+}}
+
+.mobile-tile .card-icon {{
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 0.5rem;
 }}
 
 .mobile-tile .card-headline {{
@@ -487,7 +494,27 @@ div[data-testid="stExpander"] {{
     font-weight: 700;
 }}
 
-.mobile-tile .card-cta {{
+.card-cta {{
+    display: inline-block;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-align: center;
+    text-decoration: none;
+    transition: background 0.2s;
+}}
+
+.hero-card .card-cta {{
+    background: white;
+    color: var(--primary) !important;
+}}
+
+.hero-card .card-cta:hover {{
+    background: var(--bg-card-hover);
+}}
+
+.compact-card .card-cta, .mobile-tile .card-cta {{
     background: var(--primary);
     color: white !important;
 }}
@@ -543,6 +570,30 @@ def get_priority_badge(priority):
 
 def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
+
+def log_analytics(event_name, payload=None):
+    """Mock analytics event logging."""
+    # Simple deduplication for Streamlit reruns
+    last_event = st.session_state.get("last_analytics_event")
+    last_payload = st.session_state.get("last_analytics_payload")
+
+    if last_event == event_name and last_payload == payload:
+        return None
+
+    st.session_state.last_analytics_event = event_name
+    st.session_state.last_analytics_payload = payload
+
+    now = datetime.now().isoformat()
+    log_entry = {
+        "timestamp": now,
+        "event": event_name,
+        "payload": payload or {}
+    }
+    # For demo purposes, we'll log to a file
+    os.makedirs("satya_data/analytics", exist_ok=True)
+    with open("satya_data/analytics/events.log", "a") as f:
+        f.write(json.dumps(log_entry) + "\n")
+    return log_entry
 
 def parse_iso(iso_str):
     """Robust ISO parser that handles Z and ensures timezone awareness."""
@@ -621,19 +672,55 @@ with st.sidebar:
     # Handle Navigation via Query Parameters
     nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
     query_params = st.query_params
-    default_index = 0
+
+    # Preserve page state for rerun
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "Dashboard"
+
+    # Track Promotion Clicks
+    if "clicked_promo" in query_params:
+        clicked_promo = query_params["clicked_promo"]
+        v = query_params.get("v", "Unknown")
+        log_analytics("main_owner_promo_click", {"card_size": clicked_promo, "variant": v})
+
+        # Capture current page from query params if it exists, otherwise default to "Main Owner Guide"
+        target_page = query_params.get("page", "Main Owner Guide").replace("+", " ")
+        st.session_state.current_page = target_page
+
+        # Clear all params then restore only the target page
+        st.query_params.clear()
+        st.query_params.update({"page": target_page})
+        st.rerun()
+
+    # Support legacy ?page=Main+Owner if anyone uses it, though we standardized
     if "page" in query_params:
         target_page = query_params["page"].replace("+", " ")
+        if target_page == "Main Owner":
+            target_page = "Main Owner Guide"
         if target_page in nav_options:
-            default_index = nav_options.index(target_page)
+            st.session_state.current_page = target_page
+
+    default_index = nav_options.index(st.session_state.current_page) if st.session_state.current_page in nav_options else 0
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
-        label_visibility="collapsed"
+        nav_options,
+        index=default_index,
+        label_visibility="collapsed",
+        key="nav_radio"
     )
+    st.session_state.current_page = page
 
     st.markdown("---")
+
+    # Variant Selection for A/B Testing Demo
+    if "promo_variant" not in st.session_state:
+        st.session_state.promo_variant = "A" if datetime.now().microsecond % 2 == 0 else "B"
+    if "cta_variant" not in st.session_state:
+        st.session_state.cta_variant = "1" if datetime.now().microsecond % 4 < 2 else "2"
+
+    headline_variant = st.session_state.promo_variant
+    cta_variant = st.session_state.cta_variant
 
     all_tasks = tasks_manager.list_all()
 
@@ -692,19 +779,16 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    mobile_headlines = {"A": "Main Owner Setup", "B": "Control Center"}
+    mobile_ctas = {"1": "Start", "2": "Unlock"}
 
-    mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
-    mobile_ctas = {"1": "Setup", "2": "Start"}
+    log_analytics("main_owner_promo_view", {"card_size": "mobile", "variant": headline_variant})
     st.markdown(f"""
-    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
-        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
-        <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
-        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
-    </div>
+    <a href="?page=Main+Owner+Guide&clicked_promo=mobile&v={headline_variant}" class="promo-card mobile-tile" style="margin: 0.5rem;">
+        <div class="card-icon">{MAIN_OWNER_ICON}</div>
+        <div class="card-headline">{mobile_headlines[headline_variant]}</div>
+        <div class="card-cta">{mobile_ctas[cta_variant]}</div>
+    </a>
     """, unsafe_allow_html=True)
 
     st.markdown("""
@@ -716,29 +800,6 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-def log_analytics(event_name, payload=None):
-    """Mock analytics event logging."""
-    # Simple deduplication for Streamlit reruns
-    last_event = st.session_state.get("last_analytics_event")
-    last_payload = st.session_state.get("last_analytics_payload")
-
-    if last_event == event_name and last_payload == payload:
-        return None
-
-    st.session_state.last_analytics_event = event_name
-    st.session_state.last_analytics_payload = payload
-
-    now = datetime.now().isoformat()
-    log_entry = {
-        "timestamp": now,
-        "event": event_name,
-        "payload": payload or {}
-    }
-    # For demo purposes, we'll log to a file
-    os.makedirs("satya_data/analytics", exist_ok=True)
-    with open("satya_data/analytics/events.log", "a") as f:
-        f.write(json.dumps(log_entry) + "\n")
-    return log_entry
 
 
 # ─── DASHBOARD PAGE ─────────────────────────────────────
@@ -748,14 +809,18 @@ if page == "Dashboard":
     st.markdown('<div class="page-subtitle">Overview of your AI agent operations and task progress</div>', unsafe_allow_html=True)
 
     # Main Owner Promo Hero Card
-    st.markdown("""
-    <div class="promo-card hero-card">
-        <div class="card-headline">Master Your AI Fleet</div>
+    hero_headlines = {"A": "Master Your AI Fleet", "B": "Unified Control Starts Here"}
+    hero_ctas = {"A": "Set Main Owner", "B": "Start Onboarding"}
+
+    log_analytics("main_owner_promo_view", {"card_size": "hero", "variant": headline_variant})
+    st.markdown(f"""
+    <a href="?page=Main+Owner+Guide&clicked_promo=hero&v={headline_variant}" class="promo-card hero-card">
+        <div class="card-headline">{hero_headlines[headline_variant]}</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <div class="card-cta">{hero_ctas[headline_variant]}</div>
         </div>
-    </div>
+    </a>
     """, unsafe_allow_html=True)
 
     from satya.core import get_stale_tasks
@@ -807,28 +872,6 @@ if page == "Dashboard":
         """, unsafe_allow_html=True)
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
-
-    hero_headlines = {
-        "A": "Command Your Mission: Meet the Main Owner",
-        "B": "Single Source of Truth, Single Point of Authority"
-    }
-    hero_ctas = {
-        "1": "Setup Main Owner",
-        "2": "Start Leading Now"
-    }
-
-    st.markdown(f"""
-    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
-        <div class="promo-tag">New Feature</div>
-        <div class="promo-title">{hero_headlines[headline_variant]}</div>
-        <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
-    </div>
-    """, unsafe_allow_html=True)
 
     col_left, col_right = st.columns([3, 2])
 
@@ -885,17 +928,19 @@ if page == "Dashboard":
         </div>
         """, unsafe_allow_html=True)
 
-        compact_headlines = {"A": "Unlock Main Owner", "B": "Enable Priority Ownership"}
-        compact_ctas = {"1": "Get Started", "2": "Enable Now"}
+        compact_headlines = {"A": "Secure Your Workspace", "B": "Enable Owner Oversight"}
+        compact_ctas = {"A": "Setup Now", "B": "View Guide"}
 
+        log_analytics("main_owner_promo_view", {"card_size": "compact", "variant": headline_variant})
         st.markdown(f"""
-        <div class="promo-card promo-compact">
-            <div>
-                <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
+        <a href="?page=Main+Owner+Guide&clicked_promo=compact&v={headline_variant}" class="promo-card compact-card">
+            <div class="card-icon">{MAIN_OWNER_ICON}</div>
+            <div class="card-content">
+                <div class="card-headline">{compact_headlines[headline_variant]}</div>
+                <div class="card-body">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
-        </div>
+            <div class="card-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[headline_variant]}</div>
+        </a>
         """, unsafe_allow_html=True)
 
         if stats["total"] > 0:
@@ -1214,9 +1259,20 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
-    st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
+elif page == "Main Owner Guide":
+    log_analytics("main_owner_promo_view", {"page": "Main Owner Guide"})
+
+    if st.button("Start Setup Process", key="start_setup_btn", use_container_width=True):
+        log_analytics("main_owner_setup_start", {"source": "onboarding_page"})
+        st.info("Setup process initiated. Please follow the guide below.")
+
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+        <div style="width: 48px; height: 48px;">{MAIN_OWNER_ICON}</div>
+        <div class="hero-header" style="margin-bottom: 0;">Main Owner Guide</div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Take command of your AI workforce: Designate a Main Owner for unified oversight, master permissions, and central governance.</div>', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="api-section">
@@ -1225,7 +1281,7 @@ elif page == "Main Owner":
             The Main Owner feature empowers you to take full control of your Satya environment. By designating a primary administrator,
             you gain a single source of truth for agent sessions, knowledge bases, and compliance rules. This centralized role
             streamlines multi-agent coordination, ensures consistent governance across all tasks, and provides the ultimate fallback
-            for session management.
+            for session management, making it essential for scaling your AI operations securely and efficiently.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1255,9 +1311,12 @@ elif page == "Main Owner":
         <div class="step-card">
             <div class="step-number">3</div>
             <div class="step-title">Confirm & Lock</div>
-            <div class="step-desc">Review the master permissions and click 'Finalize Setup' to lock the identity and enable oversight.</div>
+            <div class="step-desc">Review the master permissions and click 'Finalize Setup' to lock the Main Owner identity and enable centralized oversight.</div>
         </div>
         """, unsafe_allow_html=True)
+        if st.button("Finalize Setup & Lock", key="complete_setup_btn", use_container_width=True):
+            log_analytics("main_owner_setup_complete", {"status": "success"})
+            st.success("Main Owner identity locked successfully!")
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
@@ -1266,11 +1325,11 @@ elif page == "Main Owner":
     with col_faq:
         st.markdown("#### Frequently Asked Questions")
         faqs = [
-            ("What is a Main Owner?", "The Main Owner is the primary human administrator who holds master permissions over all AI agent sessions, truth sources, and governance rules."),
-            ("Can there be more than one Main Owner?", "No, Satya enforces a single-owner model for absolute accountability."),
-            ("What happens if the Main Owner is unavailable?", "We recommend storing credentials in a secure vault. Ownership can be transferred through a verified recovery process."),
-            ("Does this affect agent performance?", "No, it is a governance layer. Agents continue to operate autonomously but with clearer boundaries."),
-            ("Is the setup reversible?", "Yes, but it requires high-level confirmation and an audit trail entry to ensure security.")
+            ("What is a Main Owner?", "The Main Owner is the primary human administrator who holds master permissions over all AI agent sessions, truth sources, and governance rules within a Satya workspace."),
+            ("Can there be more than one Main Owner?", "No, Satya enforces a single-owner model for absolute accountability, but the Main Owner can delegate specific tasks to other human observers."),
+            ("What happens if the Main Owner is unavailable?", "We recommend storing the Main Owner's credentials in a secure, shared vault. In enterprise setups, ownership can be transferred through a verified recovery process."),
+            ("Does the Main Owner feature affect agent performance?", "No, it is a governance and oversight layer. Your agents will continue to operate autonomously, but with clearer boundaries and centralized logging."),
+            ("Is the Main Owner setup reversible?", "Yes, but it requires a high-level confirmation and an audit trail entry to ensure the security and integrity of your tracked AI operations.")
         ]
         for q, a in faqs:
             with st.expander(q):
@@ -1280,10 +1339,10 @@ elif page == "Main Owner":
         st.markdown("#### What to Expect")
         checklist = [
             "Centralized dashboard for all agent activity.",
-            "Master control over Truth Source additions.",
-            "Enforced governance rules across all agents.",
-            "Unified audit trail for every status change.",
-            "Priority support for owner interventions."
+            "Master control over Truth Source (knowledge base) additions.",
+            "Enforced governance rules across all connected agents.",
+            "Unified audit trail for every status change and task update.",
+            "Priority support for owner-initiated session interventions."
         ]
         for item in checklist:
             st.markdown(f"&check; {item}")
