@@ -1,8 +1,14 @@
 import requests
+import socket
+import ipaddress
+import logging
+from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 import markdownify
 from . import storage
 from .git_handler import GitHandler
+
+logger = logging.getLogger(__name__)
 
 class Scraper:
     def __init__(self, repo_path="."):
@@ -10,11 +16,26 @@ class Scraper:
         self.git_handler = GitHandler(repo_path)
         storage.ensure_satya_dirs()
 
+    def _is_safe_url(self, url):
+        try:
+            parsed = urlparse(url)
+            if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+                return False
+            addr_info = socket.getaddrinfo(parsed.hostname, None)
+            for _, _, _, _, sockaddr in addr_info:
+                ip = ipaddress.ip_address(sockaddr[0])
+                if ip.is_loopback or ip.is_private or ip.is_reserved:
+                    return False
+            return True
+        except Exception:
+            return False
+
     def fetch_and_save(self, url, title=None):
         try:
-            response = requests.get(url, timeout=10)
+            if not self._is_safe_url(url):
+                return None
+            response = requests.get(url, timeout=10, allow_redirects=False)
             response.raise_for_status()
-
             soup = BeautifulSoup(response.content, 'html.parser')
             if not title:
                 if soup.title:
@@ -37,7 +58,7 @@ class Scraper:
             return None
 
         except Exception as e:
-            print(f"Error scraping {url}: {e}")
+            logger.error(f"Error scraping {url}: {e}")
             return None
 
     def list_sources(self):
