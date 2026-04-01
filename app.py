@@ -19,10 +19,22 @@ st.set_page_config(
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 
+if "promo_variant" not in st.session_state:
+    st.session_state.promo_variant = "A" if datetime.now().second % 2 == 0 else "B"
+
+if "cta_variant" not in st.session_state:
+    st.session_state.cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+
 is_dark = st.session_state.theme == "dark"
 
 DARK_VARS = """
 :root {
+    --card-radius: 16px;
+    --card-padding-lg: 2rem;
+    --card-padding-md: 1.25rem;
+    --card-padding-sm: 1rem;
+    --card-gap: 1.5rem;
+    --transition-speed: 0.3s;
     --primary: #6C5CE7;
     --primary-light: #A29BFE;
     --primary-dark: #5A4BD1;
@@ -45,6 +57,12 @@ DARK_VARS = """
 
 LIGHT_VARS = """
 :root {
+    --card-radius: 16px;
+    --card-padding-lg: 2rem;
+    --card-padding-md: 1.25rem;
+    --card-padding-sm: 1rem;
+    --card-gap: 1.5rem;
+    --transition-speed: 0.3s;
     --primary: #6C5CE7;
     --primary-light: #7C6FF0;
     --primary-dark: #5A4BD1;
@@ -385,9 +403,10 @@ div[data-testid="stExpander"] {{
 
 /* Promo & Main Owner Styles */
 .promo-card {{
-    border-radius: 16px;
-    transition: all 0.3s ease;
+    border-radius: var(--card-radius);
+    transition: all var(--transition-speed) ease;
     cursor: pointer;
+    text-decoration: none;
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
@@ -401,11 +420,15 @@ div[data-testid="stExpander"] {{
     box-shadow: 0 12px 24px var(--shadow-color);
 }}
 
+.promo-card:active {{
+    transform: translateY(-2px);
+}}
+
 .hero-card {{
-    background: linear-gradient(135deg, #6C5CE7 0%, #5A4BD1 100%);
-    padding: 2rem;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    padding: var(--card-padding-lg);
     color: white;
-    min-height: 200px;
+    min-height: 240px;
     justify-content: center;
 }}
 
@@ -446,7 +469,7 @@ div[data-testid="stExpander"] {{
 
 .compact-card {{
     background: var(--bg-card);
-    padding: 1.25rem;
+    padding: var(--card-padding-md);
     flex-direction: row;
     align-items: center;
     gap: 1rem;
@@ -476,7 +499,7 @@ div[data-testid="stExpander"] {{
 
 .mobile-tile {{
     background: var(--bg-card);
-    padding: 1rem;
+    padding: var(--card-padding-sm);
     text-align: center;
     aspect-ratio: 1 / 1;
     justify-content: space-between;
@@ -518,6 +541,7 @@ div[data-testid="stExpander"] {{
     font-weight: 700;
     font-size: 1rem;
     margin-bottom: 0.5rem;
+    color: var(--text-primary);
 }}
 
 .step-desc {{
@@ -543,6 +567,21 @@ def get_priority_badge(priority):
 
 def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
+
+MAIN_OWNER_ICON = """
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="32" cy="32" r="32" fill="#6C5CE7" fill-opacity="0.1"/>
+  <path d="M32 12C24.268 12 18 18.268 18 26C18 33.732 24.268 40 32 40C39.732 40 46 33.732 46 26C46 18.268 39.732 12 32 12ZM32 16C37.523 16 42 20.477 42 26C42 31.523 37.523 36 32 36C26.477 36 22 31.523 22 26C22 20.477 26.477 16 32 16ZM32 42C23.163 42 16 49.163 16 58H48C48 49.163 40.837 42 32 42Z" fill="#6C5CE7"/>
+  <path d="M32 32L36 36L44 28" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+"""
+
+def format_date(iso_str):
+    """Format ISO string to 'Oct 27, 2023'."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return str(dt)
 
 def parse_iso(iso_str):
     """Robust ISO parser that handles Z and ensures timezone awareness."""
@@ -629,7 +668,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -692,18 +732,19 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    # Mobile Tile (Sidebar)
+    mobile_headlines = {"A": "Main Owner Setup", "B": "Control Center"}
+    mobile_ctas = {"1": "Start", "2": "Unlock"}
 
-    mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
-    mobile_ctas = {"1": "Setup", "2": "Start"}
+    variant = st.session_state.promo_variant
+    cta_v = st.session_state.cta_variant
+
     st.markdown(f"""
-    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
-        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
-        <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
+    <div class="promo-card mobile-tile" style="margin: 0.5rem; padding: 1rem;">
+        <div class="card-icon" role="img" aria-label="Main Owner Icon" style="width: 48px; height: 48px; margin: 0 auto 0.5rem;">{MAIN_OWNER_ICON}</div>
+        <div class="card-headline">{mobile_headlines[variant]}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" class="card-cta" aria-label="{mobile_headlines[variant]}: {mobile_ctas[cta_v]}" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_v]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -748,12 +789,17 @@ if page == "Dashboard":
     st.markdown('<div class="page-subtitle">Overview of your AI agent operations and task progress</div>', unsafe_allow_html=True)
 
     # Main Owner Promo Hero Card
-    st.markdown("""
+    hero_headlines = {"A": "Master Your AI Fleet", "B": "Unified Control Starts Here"}
+    hero_ctas = {"1": "Set Main Owner", "2": "Start Onboarding"}
+    variant = st.session_state.promo_variant
+    cta_v = st.session_state.cta_variant
+
+    st.markdown(f"""
     <div class="promo-card hero-card">
-        <div class="card-headline">Master Your AI Fleet</div>
+        <div class="card-headline">{hero_headlines[variant]}</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" class="card-cta" aria-label="{hero_headlines[variant]}: {hero_ctas[cta_v]}" title="Start Onboarding">{hero_ctas[cta_v]}</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -808,27 +854,6 @@ if page == "Dashboard":
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
-
-    hero_headlines = {
-        "A": "Command Your Mission: Meet the Main Owner",
-        "B": "Single Source of Truth, Single Point of Authority"
-    }
-    hero_ctas = {
-        "1": "Setup Main Owner",
-        "2": "Start Leading Now"
-    }
-
-    st.markdown(f"""
-    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
-        <div class="promo-tag">New Feature</div>
-        <div class="promo-title">{hero_headlines[headline_variant]}</div>
-        <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
-    </div>
-    """, unsafe_allow_html=True)
 
     col_left, col_right = st.columns([3, 2])
 
@@ -885,16 +910,19 @@ if page == "Dashboard":
         </div>
         """, unsafe_allow_html=True)
 
-        compact_headlines = {"A": "Unlock Main Owner", "B": "Enable Priority Ownership"}
-        compact_ctas = {"1": "Get Started", "2": "Enable Now"}
+        compact_headlines = {"A": "Secure Your Workspace", "B": "Enable Owner Oversight"}
+        compact_ctas = {"1": "Setup Now", "2": "View Guide"}
+        variant = st.session_state.promo_variant
+        cta_v = st.session_state.cta_variant
 
         st.markdown(f"""
-        <div class="promo-card promo-compact">
-            <div>
-                <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
+        <div class="promo-card compact-card">
+            <div class="card-icon" role="img" aria-label="Main Owner Icon">{MAIN_OWNER_ICON}</div>
+            <div class="card-content">
+                <div class="card-headline">{compact_headlines[variant]}</div>
+                <div class="card-body">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
+            <a href="?page=Main+Owner+Guide" class="card-cta" aria-label="{compact_headlines[variant]}: {compact_ctas[cta_v]}" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_v]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1214,9 +1242,17 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
-    st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
+elif page == "Main Owner Guide":
+    log_analytics("main_owner_setup_start", {"page": "Main Owner Guide"})
+
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+        <div role="img" aria-label="Main Owner Icon" style="width: 48px; height: 48px;">{MAIN_OWNER_ICON}</div>
+        <div class="hero-header" style="margin-bottom: 0;">Main Owner Guide</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="page-subtitle">Take command of your AI workforce: Designate a Main Owner for unified oversight, master permissions, and central governance.</div>', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="api-section">
@@ -1225,7 +1261,7 @@ elif page == "Main Owner":
             The Main Owner feature empowers you to take full control of your Satya environment. By designating a primary administrator,
             you gain a single source of truth for agent sessions, knowledge bases, and compliance rules. This centralized role
             streamlines multi-agent coordination, ensures consistent governance across all tasks, and provides the ultimate fallback
-            for session management.
+            for session management, making it essential for scaling your AI operations securely and efficiently.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1258,6 +1294,9 @@ elif page == "Main Owner":
             <div class="step-desc">Review the master permissions and click 'Finalize Setup' to lock the identity and enable oversight.</div>
         </div>
         """, unsafe_allow_html=True)
+        if st.button("Finalize Setup", use_container_width=True):
+            log_analytics("main_owner_setup_complete", {"page": "Main Owner Guide"})
+            st.success("Main Owner setup confirmed!")
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
