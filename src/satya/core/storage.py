@@ -11,6 +11,10 @@ TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
 
+# Global cache for tasks to avoid redundant disk I/O
+_tasks_cache: List[Dict[str, Any]] = []
+_tasks_cached_mtime: float = -1.0
+
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
     os.makedirs(TRUTH_DIR, exist_ok=True)
@@ -32,6 +36,12 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate tasks cache if we just saved a task
+                if TASKS_DIR in filepath:
+                    global _tasks_cached_mtime
+                    _tasks_cached_mtime = -1.0
+
                 return True
             finally:
                 # Release lock
@@ -87,18 +97,42 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    """
+    Lists all tasks. Uses an in-memory cache validated by directory mtime
+    to avoid N+1 disk reads on every Streamlit rerun.
+    """
     if not os.path.exists(TASKS_DIR):
         return []
-    tasks = []
-    for f in os.listdir(TASKS_DIR):
-        if f.endswith('.json'):
+
+    global _tasks_cache, _tasks_cached_mtime
+
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+    except OSError:
+        current_mtime = -1.0
+
+    if current_mtime != _tasks_cached_mtime or _tasks_cached_mtime == -1.0:
+        tasks = []
+        # Sort filenames to ensure stable rendering order
+        filenames = sorted([f for f in os.listdir(TASKS_DIR) if f.endswith('.json')])
+        for f in filenames:
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+        _tasks_cache = tasks
+        _tasks_cached_mtime = current_mtime
+
+    # Return a deep copy to prevent accidental mutation of cached objects
+    return json.loads(json.dumps(_tasks_cache))
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+
+        # Invalidate tasks cache
+        global _tasks_cached_mtime
+        _tasks_cached_mtime = -1.0
+
         return True
     return False
 
