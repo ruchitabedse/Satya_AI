@@ -544,68 +544,67 @@ def get_priority_badge(priority):
 def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
 
+MAIN_OWNER_ICON = """
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Main Owner Icon">
+  <circle cx="32" cy="32" r="32" fill="#6C5CE7" fill-opacity="0.1"/>
+  <path d="M32 12C24.268 12 18 18.268 18 26C18 33.732 24.268 40 32 40C39.732 40 46 33.732 46 26C46 18.268 39.732 12 32 12ZM32 16C37.523 16 42 20.477 42 26C42 31.523 37.523 36 32 36C26.477 36 22 31.523 22 26C22 20.477 26.477 16 32 16ZM32 42C23.163 42 16 49.163 16 58H48C48 49.163 40.837 42 32 42Z" fill="#6C5CE7"/>
+  <path d="M32 32L36 36L44 28" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+"""
+
 def parse_iso(iso_str):
     """Robust ISO parser that handles Z and ensures timezone awareness."""
     if not iso_str:
         return None
     try:
-        # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        # Handle 'Z' suffix and possible double offset in Python 3.11+
+        clean_iso = str(iso_str)
+        if clean_iso.endswith('Z'):
+            # If it already has an offset like +00:00Z, just strip Z
+            if '+' in clean_iso or '-' in clean_iso.split('T')[-1]:
+                clean_iso = clean_iso[:-1]
+            else:
+                clean_iso = clean_iso.replace('Z', '+00:00')
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
-    except:
+    except Exception:
         return html.escape(str(iso_str or "N/A"))
+
+def format_date(iso_str):
+    """Robust date formatter for ISO strings."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y")
+    return str(dt)
 
 def format_time_ago(iso_str):
     try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
+        dt = parse_iso(iso_str)
+        if not isinstance(dt, datetime):
+            return html.escape(str(iso_str or ""))
 
-        dt = datetime.fromisoformat(clean_iso)
+        now = datetime.now(timezone.utc)
+        diff = now - dt
+        seconds = int(diff.total_seconds())
 
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
+        if seconds < 0:
             return "Just now"
-        if diff.days > 0:
+        if seconds < 60:
+            return f"{seconds}s ago"
+        if seconds < 3600:
+            return f"{seconds // 60}m ago"
+        if seconds < 86400:
+            return f"{seconds // 3600}h ago"
+        if diff.days < 30:
             return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+        if diff.days < 365:
+            return f"{diff.days // 30}mo ago"
+        return f"{diff.days // 365}y ago"
+    except Exception:
         return html.escape(str(iso_str or ""))
-
-    now = datetime.now(timezone.utc)
-    diff = now - dt
-    seconds = int(diff.total_seconds())
-
-    if seconds < 0:
-        return "Just now"
-    if seconds < 60:
-        return f"{seconds}s ago"
-    if seconds < 3600:
-        return f"{seconds // 60}m ago"
-    if seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    if diff.days < 30:
-        return f"{diff.days}d ago"
-    if diff.days < 365:
-        return f"{diff.days // 30}mo ago"
-    return f"{diff.days // 365}y ago"
 
 
 with st.sidebar:
@@ -619,17 +618,18 @@ with st.sidebar:
     st.markdown("---")
 
     # Handle Navigation via Query Parameters
-    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
+    NAV_OPTIONS = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
     query_params = st.query_params
     default_index = 0
-    if "page" in query_params:
-        target_page = query_params["page"].replace("+", " ")
-        if target_page in nav_options:
-            default_index = nav_options.index(target_page)
+    target_page = query_params.get("page", "Dashboard").replace("+", " ")
+
+    if target_page in NAV_OPTIONS:
+        default_index = NAV_OPTIONS.index(target_page)
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        NAV_OPTIONS,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -684,9 +684,8 @@ with st.sidebar:
 
     st.markdown("---")
 
-    theme_label = "Switch to Light" if is_dark else "Switch to Dark"
-    theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    theme_label = "Switch to Light Mode" if is_dark else "Switch to Dark Mode"
+    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True, help=theme_label):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -699,11 +698,11 @@ with st.sidebar:
     mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
     mobile_ctas = {"1": "Setup", "2": "Start"}
     st.markdown(f"""
-    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
-        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
+    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;" title="{mobile_headlines[headline_variant]}">
+        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;" role="img" aria-label="Crown Icon">&#128081;</div>
         <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;" aria-label="{mobile_ctas[cta_variant]} for Main Owner">{mobile_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -748,12 +747,12 @@ if page == "Dashboard":
     st.markdown('<div class="page-subtitle">Overview of your AI agent operations and task progress</div>', unsafe_allow_html=True)
 
     # Main Owner Promo Hero Card
-    st.markdown("""
-    <div class="promo-card hero-card">
+    st.markdown(f"""
+    <div class="promo-card hero-card" onclick="window.location.href='?page=Main+Owner+Guide'">
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" class="card-cta" aria-label="Start Main Owner onboarding" title="Start Onboarding">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -822,11 +821,11 @@ if page == "Dashboard":
     }
 
     st.markdown(f"""
-    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
+    <div class="promo-card promo-hero" style="cursor: pointer;" title="{hero_headlines[headline_variant]}" onclick="window.location.href='?page=Main+Owner+Guide'">
         <div class="promo-tag">New Feature</div>
         <div class="promo-title">{hero_headlines[headline_variant]}</div>
         <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
+        <a href="?page=Main+Owner+Guide" class="promo-cta" aria-label="{hero_ctas[cta_variant]} for Main Owner">{hero_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -889,12 +888,12 @@ if page == "Dashboard":
         compact_ctas = {"1": "Get Started", "2": "Enable Now"}
 
         st.markdown(f"""
-        <div class="promo-card promo-compact">
+        <div class="promo-card promo-compact" title="{compact_headlines[headline_variant]}" onclick="window.location.href='?page=Main+Owner+Guide'">
             <div>
                 <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
+            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;" aria-label="{compact_ctas[cta_variant]} for Main Owner">{compact_ctas[cta_variant]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1214,7 +1213,8 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
+    st.markdown(f'<div style="margin-bottom: 1rem;">{MAIN_OWNER_ICON}</div>', unsafe_allow_html=True)
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
