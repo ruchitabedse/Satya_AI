@@ -2,6 +2,7 @@ import os
 import json
 import fcntl
 import logging
+import copy
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,10 @@ SATYA_DIR = "satya_data"
 TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
+
+# In-memory cache for tasks to avoid N+1 disk I/O
+_tasks_cache: List[Dict[str, Any]] = []
+_tasks_mtime: float = -1.0
 
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
@@ -32,6 +37,12 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate tasks cache if we just saved a task
+                if filepath.startswith(TASKS_DIR):
+                    global _tasks_mtime
+                    _tasks_mtime = -1.0
+
                 return True
             finally:
                 # Release lock
@@ -87,18 +98,38 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    global _tasks_cache, _tasks_mtime
+
     if not os.path.exists(TASKS_DIR):
         return []
-    tasks = []
-    for f in os.listdir(TASKS_DIR):
-        if f.endswith('.json'):
-            tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+        if current_mtime == _tasks_mtime:
+            # Return a deep copy to prevent callers from modifying the cache
+            return copy.deepcopy(_tasks_cache)
+
+        tasks = []
+        # Sort filenames for consistent rendering
+        filenames = sorted(os.listdir(TASKS_DIR))
+        for f in filenames:
+            if f.endswith('.json'):
+                tasks.append(load_json(os.path.join(TASKS_DIR, f)))
+
+        _tasks_cache = tasks
+        _tasks_mtime = current_mtime
+        return copy.deepcopy(tasks)
+    except Exception as e:
+        logger.error(f"Error listing tasks: {e}")
+        return []
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        # Invalidate tasks cache
+        global _tasks_mtime
+        _tasks_mtime = -1.0
         return True
     return False
 
