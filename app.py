@@ -550,43 +550,31 @@ def parse_iso(iso_str):
         return None
     try:
         # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        clean_iso = iso_str
+        if clean_iso.endswith('Z'):
+            clean_iso = clean_iso[:-1]
+            # If it doesn't already have an offset, add UTC
+            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
+                clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
-    except:
+    except Exception:
+        return None
+
+def format_date(iso_str):
+    """Formats an ISO string into a human-readable date."""
+    dt = parse_iso(iso_str)
+    if not dt or isinstance(dt, str):
         return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y %H:%M")
 
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Returns a relative time string (e.g., '2m ago')."""
+    dt = parse_iso(iso_str)
+    if not dt or isinstance(dt, str):
         return html.escape(str(iso_str or ""))
 
     now = datetime.now(timezone.utc)
@@ -629,7 +617,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -684,9 +673,14 @@ with st.sidebar:
 
     st.markdown("---")
 
-    theme_label = "Switch to Light" if is_dark else "Switch to Dark"
-    theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    theme_label = "Switch to Light Mode" if is_dark else "Switch to Dark Mode"
+    theme_icon = "☀️" if is_dark else "🌙"
+    if st.button(
+        f"{theme_icon} {theme_label}",
+        key="theme_toggle",
+        use_container_width=True,
+        help=f"Click to {'enable light theme' if is_dark else 'enable dark theme'}"
+    ):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -753,7 +747,7 @@ if page == "Dashboard":
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" class="card-cta" title="Begin the Main Owner setup process">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1214,7 +1208,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
