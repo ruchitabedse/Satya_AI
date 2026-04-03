@@ -2,6 +2,7 @@ import os
 import json
 import fcntl
 import logging
+import copy
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -11,12 +12,17 @@ TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
 
+# In-memory cache for tasks to avoid N+1 disk I/O
+_TASKS_CACHE: List[Dict[str, Any]] = []
+_LAST_MTIME: float = -1.0
+
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
     os.makedirs(TRUTH_DIR, exist_ok=True)
     os.makedirs(AGENTS_DIR, exist_ok=True)
 
 def save_json(filepath: str, data: Any) -> bool:
+    global _LAST_MTIME
     tmp_filepath = filepath + ".tmp"
     lock_filepath = filepath + ".lock"
 
@@ -32,6 +38,11 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate tasks cache if a task file was updated
+                if filepath.startswith(TASKS_DIR):
+                    _LAST_MTIME = -1.0
+
                 return True
             finally:
                 # Release lock
@@ -87,18 +98,36 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    global _TASKS_CACHE, _LAST_MTIME
     if not os.path.exists(TASKS_DIR):
         return []
+
+    try:
+        current_mtime = os.path.getmtime(TASKS_DIR)
+    except OSError:
+        current_mtime = -1.0
+
+    # Return cached copy if directory hasn't changed
+    if _LAST_MTIME != -1.0 and current_mtime == _LAST_MTIME:
+        return copy.deepcopy(_TASKS_CACHE)
+
     tasks = []
-    for f in os.listdir(TASKS_DIR):
-        if f.endswith('.json'):
-            tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+    # Sort filenames for consistent ordering
+    filenames = sorted([f for f in os.listdir(TASKS_DIR) if f.endswith('.json')])
+    for f in filenames:
+        tasks.append(load_json(os.path.join(TASKS_DIR, f)))
+
+    _TASKS_CACHE = tasks
+    _LAST_MTIME = current_mtime
+    return copy.deepcopy(tasks)
 
 def delete_task_file(task_id: str) -> bool:
+    global _LAST_MTIME
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        # Invalidate tasks cache
+        _LAST_MTIME = -1.0
         return True
     return False
 
