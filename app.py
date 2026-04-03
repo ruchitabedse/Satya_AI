@@ -21,6 +21,15 @@ if "theme" not in st.session_state:
 
 is_dark = st.session_state.theme == "dark"
 
+# Global Navigation Configuration
+NAV_OPTIONS = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
+query_params = st.query_params
+default_index = 0
+if "page" in query_params:
+    target_page = query_params["page"].replace("+", " ")
+    if target_page in NAV_OPTIONS:
+        default_index = NAV_OPTIONS.index(target_page)
+
 DARK_VARS = """
 :root {
     --primary: #6C5CE7;
@@ -550,10 +559,13 @@ def parse_iso(iso_str):
         return None
     try:
         # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        # If string already has a numeric offset, strip 'Z' instead of replacing it.
+        clean_iso = iso_str
+        if clean_iso.endswith('Z'):
+            if '+' in clean_iso or '-' in clean_iso.split('T')[-1]:
+                clean_iso = clean_iso[:-1]
+            else:
+                clean_iso = clean_iso.replace('Z', '+00:00')
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
@@ -561,6 +573,13 @@ def parse_iso(iso_str):
         return dt
     except:
         return html.escape(str(iso_str or "N/A"))
+
+def format_date(iso_str):
+    """Format an ISO string into a human-readable date."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y %H:%M")
+    return str(dt or "N/A")
 
 def format_time_ago(iso_str):
     try:
@@ -618,18 +637,10 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Handle Navigation via Query Parameters
-    nav_options = ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"]
-    query_params = st.query_params
-    default_index = 0
-    if "page" in query_params:
-        target_page = query_params["page"].replace("+", " ")
-        if target_page in nav_options:
-            default_index = nav_options.index(target_page)
-
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        NAV_OPTIONS,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -686,7 +697,7 @@ with st.sidebar:
 
     theme_label = "Switch to Light" if is_dark else "Switch to Dark"
     theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True, help="Switch between Dark and Light mode themes"):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -699,8 +710,8 @@ with st.sidebar:
     mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
     mobile_ctas = {"1": "Setup", "2": "Start"}
     st.markdown(f"""
-    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;">
-        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
+    <div class="promo-card promo-mobile" style="margin: 0.5rem; padding: 1rem;" onclick="window.location.href='?page=Main+Owner+Guide'">
+        <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;"><span role="img" aria-label="Crown icon">&#128081;</span></div>
         <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
         <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
@@ -749,11 +760,11 @@ if page == "Dashboard":
 
     # Main Owner Promo Hero Card
     st.markdown("""
-    <div class="promo-card hero-card">
+    <div class="promo-card hero-card" onclick="window.location.href='?page=Main+Owner+Guide'">
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" class="card-cta" title="Start the Main Owner onboarding mission">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -889,7 +900,7 @@ if page == "Dashboard":
         compact_ctas = {"1": "Get Started", "2": "Enable Now"}
 
         st.markdown(f"""
-        <div class="promo-card promo-compact">
+        <div class="promo-card promo-compact" onclick="window.location.href='?page=Main+Owner+Guide'">
             <div>
                 <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
@@ -989,9 +1000,9 @@ elif page == "Task Board":
     col1, col2, col3 = st.columns(3)
 
     headers = {
-        "queued": ("header-todo", "&#128204; To Do", col1),
-        "in_progress": ("header-progress", "&#9889; In Progress", col2),
-        "done": ("header-done", "&#9989; Done", col3)
+        "queued": ("header-todo", '<span role="img" aria-label="Pushpin">&#128204;</span> To Do', col1),
+        "in_progress": ("header-progress", '<span role="img" aria-label="Lightning">&#9889;</span> In Progress', col2),
+        "done": ("header-done", '<span role="img" aria-label="Check Mark">&#9989;</span> Done', col3)
     }
 
     for status, (css_class, label, col) in headers.items():
@@ -1214,7 +1225,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
