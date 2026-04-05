@@ -562,6 +562,13 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    """Format an ISO string into a human-readable date."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y %H:%M")
+    return dt if dt else "N/A"
+
 def format_time_ago(iso_str):
     try:
         # Handle 'Z' suffix and possible double offset in Python 3.11+
@@ -629,7 +636,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -685,8 +693,8 @@ with st.sidebar:
     st.markdown("---")
 
     theme_label = "Switch to Light" if is_dark else "Switch to Dark"
-    theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    theme_icon = "☀️" if is_dark else "🌙"
+    if st.button(f"{theme_icon} {theme_label}", key="theme_toggle", use_container_width=True, help="Toggle between light and dark themes"):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -749,11 +757,11 @@ if page == "Dashboard":
 
     # Main Owner Promo Hero Card
     st.markdown("""
-    <div class="promo-card hero-card">
+    <div class="promo-card hero-card" onclick="window.location.href='?page=Main+Owner+Guide&from=hero'" style="cursor: pointer;">
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide&from=hero" class="card-cta" title="Start Onboarding with the Main Owner Guide">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1214,7 +1222,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
