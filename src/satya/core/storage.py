@@ -2,6 +2,7 @@ import os
 import json
 import fcntl
 import logging
+import copy
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -11,12 +12,17 @@ TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
 
+# In-memory cache for tasks to avoid redundant disk I/O
+_TASKS_CACHE: List[Dict[str, Any]] = []
+_TASKS_MTIME: float = -1.0
+
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
     os.makedirs(TRUTH_DIR, exist_ok=True)
     os.makedirs(AGENTS_DIR, exist_ok=True)
 
 def save_json(filepath: str, data: Any) -> bool:
+    global _TASKS_MTIME
     tmp_filepath = filepath + ".tmp"
     lock_filepath = filepath + ".lock"
 
@@ -32,6 +38,10 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate tasks cache if we just updated a task
+                if filepath.startswith(TASKS_DIR):
+                    _TASKS_MTIME = -1.0
                 return True
             finally:
                 # Release lock
@@ -87,18 +97,41 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    global _TASKS_MTIME, _TASKS_CACHE
     if not os.path.exists(TASKS_DIR):
         return []
-    tasks = []
-    for f in os.listdir(TASKS_DIR):
-        if f.endswith('.json'):
-            tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    try:
+        # Check if the directory has changed
+        current_mtime = os.path.getmtime(TASKS_DIR)
+        if current_mtime == _TASKS_MTIME:
+            # Return a copy to prevent callers from modifying the cache.
+            # Using copy.deepcopy() for robust isolation of nested dicts/lists.
+            return copy.deepcopy(_TASKS_CACHE)
+
+        # Re-read tasks
+        tasks = []
+        # Sort filenames to ensure stable order
+        filenames = sorted(os.listdir(TASKS_DIR))
+        for f in filenames:
+            if f.endswith('.json'):
+                tasks.append(load_json(os.path.join(TASKS_DIR, f)))
+
+        # Update cache
+        _TASKS_CACHE = tasks
+        _TASKS_MTIME = current_mtime
+
+        return copy.deepcopy(tasks)
+    except Exception as e:
+        logger.error(f"Error listing tasks: {e}")
+        return []
 
 def delete_task_file(task_id: str) -> bool:
+    global _TASKS_MTIME
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        _TASKS_MTIME = -1.0
         return True
     return False
 
