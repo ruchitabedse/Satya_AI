@@ -19,6 +19,12 @@ st.set_page_config(
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 
+if "promo_variant" not in st.session_state:
+    st.session_state.promo_variant = "A" if datetime.now().second % 2 == 0 else "B"
+
+if "cta_variant" not in st.session_state:
+    st.session_state.cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+
 is_dark = st.session_state.theme == "dark"
 
 DARK_VARS = """
@@ -550,43 +556,36 @@ def parse_iso(iso_str):
         return None
     try:
         # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        # Only replace 'Z' with offset if no other offset exists to avoid malformed ISOs
+        clean_iso = iso_str
+        if clean_iso.endswith('Z'):
+            if '+' in clean_iso or '-' in clean_iso.split('T')[-1]:
+                clean_iso = clean_iso[:-1]
+            else:
+                clean_iso = clean_iso.replace('Z', '+00:00')
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
-    except:
-        return html.escape(str(iso_str or "N/A"))
+    except Exception:
+        return None
+
+
+def format_date(iso_str):
+    """Format ISO string into human-readable date."""
+    dt = parse_iso(iso_str)
+    if not dt:
+        return "N/A"
+    if isinstance(dt, str):
+        return dt
+    return dt.strftime("%b %d, %Y %H:%M")
+
 
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Format ISO string into human-readable relative time (e.g., '2m ago')."""
+    dt = parse_iso(iso_str)
+    if not dt or isinstance(dt, str):
         return html.escape(str(iso_str or ""))
 
     now = datetime.now(timezone.utc)
@@ -629,7 +628,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"],
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -685,16 +685,16 @@ with st.sidebar:
     st.markdown("---")
 
     theme_label = "Switch to Light" if is_dark else "Switch to Dark"
-    theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    theme_icon = "☀️" if is_dark else "🌙"
+    if st.button(f"{theme_icon} {'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True, help=f"Toggle application theme: {theme_label}"):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
     st.markdown("---")
 
     # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    headline_variant = st.session_state.promo_variant
+    cta_variant = st.session_state.cta_variant
 
     mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
     mobile_ctas = {"1": "Setup", "2": "Start"}
@@ -753,7 +753,7 @@ if page == "Dashboard":
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" class="card-cta" title="Start the Main Owner onboarding process">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -773,7 +773,7 @@ if page == "Dashboard":
     with c1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128202;</div>
+            <div class="metric-icon"><span role="img" aria-label="Total tasks chart">&#128202;</span></div>
             <div class="metric-value" style="color: var(--primary-light);">{stats['total']}</div>
             <div class="metric-label">Total Tasks</div>
         </div>
@@ -782,7 +782,7 @@ if page == "Dashboard":
     with c2:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128204;</div>
+            <div class="metric-icon"><span role="img" aria-label="Tasks to do pin">&#128204;</span></div>
             <div class="metric-value" style="color: var(--info);">{stats['queued']}</div>
             <div class="metric-label">To Do</div>
         </div>
@@ -791,7 +791,7 @@ if page == "Dashboard":
     with c3:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9889;</div>
+            <div class="metric-icon"><span role="img" aria-label="In progress lightning bolt">&#9889;</span></div>
             <div class="metric-value" style="color: var(--warning);">{stats['in_progress']}</div>
             <div class="metric-label">In Progress</div>
         </div>
@@ -800,7 +800,7 @@ if page == "Dashboard":
     with c4:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9989;</div>
+            <div class="metric-icon"><span role="img" aria-label="Completed check mark">&#9989;</span></div>
             <div class="metric-value" style="color: var(--success);">{stats['done']}</div>
             <div class="metric-label">Completed</div>
         </div>
@@ -809,8 +809,8 @@ if page == "Dashboard":
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    headline_variant = st.session_state.promo_variant
+    cta_variant = st.session_state.cta_variant
 
     hero_headlines = {
         "A": "Command Your Mission: Meet the Main Owner",
@@ -885,6 +885,8 @@ if page == "Dashboard":
         </div>
         """, unsafe_allow_html=True)
 
+        headline_variant = st.session_state.promo_variant
+        cta_variant = st.session_state.cta_variant
         compact_headlines = {"A": "Unlock Main Owner", "B": "Enable Priority Ownership"}
         compact_ctas = {"1": "Get Started", "2": "Enable Now"}
 
@@ -1214,7 +1216,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
