@@ -545,52 +545,39 @@ def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
 
 def parse_iso(iso_str):
-    """Robust ISO parser that handles Z and ensures timezone awareness."""
+    """Robust ISO parser that handles Z and ensures timezone awareness. Returns None on error."""
     if not iso_str:
         return None
     try:
-        # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
-
-        dt = datetime.fromisoformat(clean_iso)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except:
-        return html.escape(str(iso_str or "N/A"))
-
-def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
+        clean_iso = str(iso_str)
         if clean_iso.endswith('Z'):
             clean_iso = clean_iso[:-1]
             if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
                 clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
-
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
+        return dt
     except:
+        return None
+
+
+def format_date(iso_str):
+    """Format ISO string into a human-readable date (e.g., Oct 27, 2023 10:00)."""
+    dt = parse_iso(iso_str)
+    if dt:
+        return dt.strftime("%b %d, %Y %H:%M")
+    return html.escape(str(iso_str or "N/A"))
+
+
+def format_time_ago(iso_str):
+    """Format ISO string into a relative 'time ago' string."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or ""))
 
-    now = datetime.now(timezone.utc)
-    diff = now - dt
+    diff = datetime.now(timezone.utc) - dt
     seconds = int(diff.total_seconds())
 
     if seconds < 0:
@@ -629,7 +616,7 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner Guide", "SDK Docs"],
         label_visibility="collapsed"
     )
 
@@ -1214,8 +1201,8 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
-    st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
+elif page == "Main Owner Guide":
+    st.markdown('<div class="hero-header">Main Owner Guide</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
     st.markdown("""
