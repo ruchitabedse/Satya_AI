@@ -549,18 +549,28 @@ def parse_iso(iso_str):
     if not iso_str:
         return None
     try:
-        # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        # Handle 'Z' suffix and possible double offset in Python 3.11+
+        # e.g., '2023-10-27T10:00:00+00:00Z'
+        clean_iso = str(iso_str)
+        if clean_iso.endswith('Z'):
+            clean_iso = clean_iso[:-1]
+            # Only add +00:00 if no other timezone offset is present
+            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
+                clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except:
+        return None
+
+def format_date(iso_str):
+    """Formats an ISO string into a human-readable date: 'Oct 27, 2023 10:00'."""
+    dt = parse_iso(iso_str)
+    if not dt or isinstance(dt, str):
         return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y %H:%M")
 
 def format_time_ago(iso_str):
     try:
