@@ -549,63 +549,44 @@ def parse_iso(iso_str):
     if not iso_str:
         return None
     try:
-        # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        # Robustly handle 'Z' and existing numeric offsets
+        clean_iso = iso_str
+        if clean_iso.endswith('Z'):
+            clean_iso = clean_iso[:-1]
+            # Only add +00:00 if no other timezone indicator is present
+            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
+                clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except:
+        return None
+
+def format_date(iso_str):
+    """Formats an ISO string to a human-readable date."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y %H:%M")
 
 def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
-        clean_iso = iso_str
-        if clean_iso.endswith('Z'):
-            clean_iso = clean_iso[:-1]
-            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
-                clean_iso += '+00:00'
-
-        dt = datetime.fromisoformat(clean_iso)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+    """Formats an ISO string to a relative time ago string."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or ""))
 
-    now = datetime.now(timezone.utc)
-    diff = now - dt
-    seconds = int(diff.total_seconds())
-
-    if seconds < 0:
+    diff = datetime.now(timezone.utc) - dt
+    if diff.total_seconds() < 0:
         return "Just now"
-    if seconds < 60:
-        return f"{seconds}s ago"
-    if seconds < 3600:
-        return f"{seconds // 60}m ago"
-    if seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    if diff.days < 30:
+    if diff.days > 0:
         return f"{diff.days}d ago"
-    if diff.days < 365:
-        return f"{diff.days // 30}mo ago"
-    return f"{diff.days // 365}y ago"
+    hours = diff.seconds // 3600
+    if hours > 0:
+        return f"{hours}h ago"
+    minutes = diff.seconds // 60
+    return f"{minutes}m ago" if minutes > 0 else "Just now"
 
 
 with st.sidebar:
