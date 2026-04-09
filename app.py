@@ -23,9 +23,9 @@ is_dark = st.session_state.theme == "dark"
 
 DARK_VARS = """
 :root {
-    --primary: #6C5CE7;
+    --primary: #5849BE;
     --primary-light: #A29BFE;
-    --primary-dark: #5A4BD1;
+    --primary-dark: #3C2FA2;
     --success: #00B894;
     --warning: #FDCB6E;
     --danger: #E17055;
@@ -45,9 +45,9 @@ DARK_VARS = """
 
 LIGHT_VARS = """
 :root {
-    --primary: #6C5CE7;
+    --primary: #5849BE;
     --primary-light: #7C6FF0;
-    --primary-dark: #5A4BD1;
+    --primary-dark: #3C2FA2;
     --success: #00B894;
     --warning: #F0A500;
     --danger: #E17055;
@@ -518,6 +518,7 @@ div[data-testid="stExpander"] {{
     font-weight: 700;
     font-size: 1rem;
     margin-bottom: 0.5rem;
+    color: var(--text-primary);
 }}
 
 .step-desc {{
@@ -550,21 +551,6 @@ def parse_iso(iso_str):
         return None
     try:
         # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
-
-        dt = datetime.fromisoformat(clean_iso)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except:
-        return html.escape(str(iso_str or "N/A"))
-
-def format_time_ago(iso_str):
-    try:
-        # Handle 'Z' suffix and possible double offset in Python 3.11+
         clean_iso = iso_str
         if clean_iso.endswith('Z'):
             clean_iso = clean_iso[:-1]
@@ -572,21 +558,23 @@ def format_time_ago(iso_str):
                 clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
-
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
 
-        diff = datetime.now(timezone.utc) - dt
-        if diff.total_seconds() < 0:
-            return "Just now"
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago" if minutes > 0 else "Just now"
-    except:
+def format_date(iso_str):
+    """Format ISO string to human readable date."""
+    dt = parse_iso(iso_str)
+    if not dt:
+        return html.escape(str(iso_str or "N/A"))
+    return dt.strftime("%b %d, %Y %H:%M")
+
+def format_time_ago(iso_str):
+    """Return a relative time string (e.g., '3m ago')."""
+    dt = parse_iso(iso_str)
+    if not dt:
         return html.escape(str(iso_str or ""))
 
     now = datetime.now(timezone.utc)
@@ -629,7 +617,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -671,7 +660,7 @@ with st.sidebar:
         completion = 0
 
     st.markdown(f"""
-    <div style="padding: 0.5rem;">
+    <div style="padding: 0.5rem;" role="progressbar" aria-valuenow="{completion}" aria-valuemin="0" aria-valuemax="100" aria-label="Overall Task Completion Progress">
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
             Overall Progress
         </div>
@@ -684,9 +673,9 @@ with st.sidebar:
 
     st.markdown("---")
 
-    theme_label = "Switch to Light" if is_dark else "Switch to Dark"
-    theme_icon = "&#9728;&#65039;" if is_dark else "&#127769;"
-    if st.button(f"{'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True):
+    theme_label = "Switch to Light Mode" if is_dark else "Switch to Dark Mode"
+    theme_icon = "☀️" if is_dark else "🌙"
+    if st.button(f"{theme_icon} {'Light Mode' if is_dark else 'Dark Mode'}", key="theme_toggle", use_container_width=True, help=theme_label):
         st.session_state.theme = "light" if is_dark else "dark"
         st.rerun()
 
@@ -749,11 +738,11 @@ if page == "Dashboard":
 
     # Main Owner Promo Hero Card
     st.markdown("""
-    <div class="promo-card hero-card">
+    <div class="promo-card hero-card" onclick="window.location.href='?page=Main+Owner+Guide'">
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="?page=Main+Owner+Guide" class="card-cta" title="Go to Main Owner Guide">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -773,7 +762,7 @@ if page == "Dashboard":
     with c1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128202;</div>
+            <div class="metric-icon"><span role="img" aria-label="Total Tasks Icon">📊</span></div>
             <div class="metric-value" style="color: var(--primary-light);">{stats['total']}</div>
             <div class="metric-label">Total Tasks</div>
         </div>
@@ -782,7 +771,7 @@ if page == "Dashboard":
     with c2:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128204;</div>
+            <div class="metric-icon"><span role="img" aria-label="To Do Icon">📌</span></div>
             <div class="metric-value" style="color: var(--info);">{stats['queued']}</div>
             <div class="metric-label">To Do</div>
         </div>
@@ -791,7 +780,7 @@ if page == "Dashboard":
     with c3:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9889;</div>
+            <div class="metric-icon"><span role="img" aria-label="In Progress Icon">⚡</span></div>
             <div class="metric-value" style="color: var(--warning);">{stats['in_progress']}</div>
             <div class="metric-label">In Progress</div>
         </div>
@@ -800,7 +789,7 @@ if page == "Dashboard":
     with c4:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9989;</div>
+            <div class="metric-icon"><span role="img" aria-label="Completed Icon">✅</span></div>
             <div class="metric-value" style="color: var(--success);">{stats['done']}</div>
             <div class="metric-label">Completed</div>
         </div>
@@ -1214,7 +1203,8 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
+    log_analytics("page_view", {"page": "Main Owner Guide"})
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
