@@ -2,6 +2,7 @@ import os
 import json
 import fcntl
 import logging
+import copy
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,10 @@ SATYA_DIR = "satya_data"
 TASKS_DIR = os.path.join(SATYA_DIR, "tasks")
 TRUTH_DIR = os.path.join(SATYA_DIR, "truth")
 AGENTS_DIR = os.path.join(SATYA_DIR, "agents")
+
+# In-memory cache for tasks
+_TASKS_CACHE: List[Dict[str, Any]] = []
+_TASKS_CACHE_MTIME: float = -1.0
 
 def ensure_satya_dirs() -> None:
     os.makedirs(TASKS_DIR, exist_ok=True)
@@ -32,6 +37,12 @@ def save_json(filepath: str, data: Any) -> bool:
 
                 # Atomic rename
                 os.rename(tmp_filepath, filepath)
+
+                # Invalidate tasks cache if a task was saved
+                if filepath.startswith(TASKS_DIR):
+                    global _TASKS_CACHE_MTIME
+                    _TASKS_CACHE_MTIME = -1.0
+
                 return True
             finally:
                 # Release lock
@@ -87,18 +98,31 @@ def get_task_path(task_id: str) -> str:
     return os.path.join(TASKS_DIR, f"{safe_task_id}.json")
 
 def list_tasks() -> List[Dict[str, Any]]:
+    global _TASKS_CACHE, _TASKS_CACHE_MTIME
     if not os.path.exists(TASKS_DIR):
         return []
+
+    # Check if directory hasn't changed since last read
+    mtime = os.path.getmtime(TASKS_DIR)
+    if mtime == _TASKS_CACHE_MTIME:
+        return copy.deepcopy(_TASKS_CACHE)
+
     tasks = []
-    for f in os.listdir(TASKS_DIR):
+    # Sort for consistent UI rendering
+    for f in sorted(os.listdir(TASKS_DIR)):
         if f.endswith('.json'):
             tasks.append(load_json(os.path.join(TASKS_DIR, f)))
-    return tasks
+
+    _TASKS_CACHE = tasks
+    _TASKS_CACHE_MTIME = mtime
+    return copy.deepcopy(_TASKS_CACHE)
 
 def delete_task_file(task_id: str) -> bool:
     filepath = get_task_path(task_id)
     if os.path.exists(filepath):
         os.remove(filepath)
+        global _TASKS_CACHE_MTIME
+        _TASKS_CACHE_MTIME = -1.0
         return True
     return False
 
