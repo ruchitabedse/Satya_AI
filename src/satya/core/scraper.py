@@ -1,8 +1,41 @@
 import requests
 from bs4 import BeautifulSoup
 import markdownify
+import ipaddress
+import socket
+from urllib.parse import urlparse
 from . import storage
 from .git_handler import GitHandler
+
+def is_safe_url(url):
+    """
+    Validates if a URL is safe for scraping by checking scheme and IP address.
+    Blocks private, loopback, and reserved IP ranges to prevent SSRF.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Resolve hostname to IP
+        ip = socket.gethostbyname(hostname)
+        ip_obj = ipaddress.ip_address(ip)
+
+        # Block non-public IP addresses
+        if (ip_obj.is_private or
+            ip_obj.is_loopback or
+            ip_obj.is_reserved or
+            ip_obj.is_link_local or
+            ip_obj.is_multicast):
+            return False
+
+        return True
+    except Exception:
+        return False
 
 class Scraper:
     def __init__(self, repo_path="."):
@@ -12,6 +45,10 @@ class Scraper:
 
     def fetch_and_save(self, url, title=None):
         try:
+            if not is_safe_url(url):
+                print(f"SSRF Warning: Blocked unsafe URL: {url}")
+                return None
+
             response = requests.get(url, timeout=10)
             response.raise_for_status()
 
