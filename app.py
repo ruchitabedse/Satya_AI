@@ -23,9 +23,9 @@ is_dark = st.session_state.theme == "dark"
 
 DARK_VARS = """
 :root {
-    --primary: #6C5CE7;
+    --primary: #5849BE;
     --primary-light: #A29BFE;
-    --primary-dark: #5A4BD1;
+    --primary-dark: #3C2FA2;
     --success: #00B894;
     --warning: #FDCB6E;
     --danger: #E17055;
@@ -45,9 +45,9 @@ DARK_VARS = """
 
 LIGHT_VARS = """
 :root {
-    --primary: #6C5CE7;
+    --primary: #5849BE;
     --primary-light: #7C6FF0;
-    --primary-dark: #5A4BD1;
+    --primary-dark: #3C2FA2;
     --success: #00B894;
     --warning: #F0A500;
     --danger: #E17055;
@@ -544,23 +544,48 @@ def get_priority_badge(priority):
 def get_priority_class(priority):
     return f"priority-{html.escape((priority or 'medium').lower())}"
 
+def log_analytics(event_name, payload=None):
+    """Mock analytics event logging."""
+    # Simple deduplication for Streamlit reruns
+    last_event = st.session_state.get("last_analytics_event")
+    last_payload = st.session_state.get("last_analytics_payload")
+
+    if last_event == event_name and last_payload == payload:
+        return None
+
+    st.session_state.last_analytics_event = event_name
+    st.session_state.last_analytics_payload = payload
+
+    now = datetime.now().isoformat()
+    log_entry = {
+        "timestamp": now,
+        "event": event_name,
+        "payload": payload or {}
+    }
+    # For demo purposes, we'll log to a file
+    os.makedirs("satya_data/analytics", exist_ok=True)
+    with open("satya_data/analytics/events.log", "a") as f:
+        f.write(json.dumps(log_entry) + "\n")
+    return log_entry
+
 def parse_iso(iso_str):
     """Robust ISO parser that handles Z and ensures timezone awareness."""
     if not iso_str:
         return None
     try:
         # Handle cases like '2023-10-27T10:00:00+00:00Z'
-        if iso_str.endswith('Z'):
-            clean_iso = iso_str.replace('Z', '+00:00')
-        else:
-            clean_iso = iso_str
+        clean_iso = iso_str
+        if clean_iso.endswith('Z'):
+            clean_iso = clean_iso[:-1]
+            if not ('+' in clean_iso or '-' in clean_iso.split('T')[-1]):
+                clean_iso += '+00:00'
 
         dt = datetime.fromisoformat(clean_iso)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except:
-        return html.escape(str(iso_str or "N/A"))
+        return None
 
 def format_time_ago(iso_str):
     try:
@@ -607,6 +632,18 @@ def format_time_ago(iso_str):
         return f"{diff.days // 30}mo ago"
     return f"{diff.days // 365}y ago"
 
+def format_date(iso_str):
+    """Robust ISO parser that returns human-readable date."""
+    if not iso_str:
+        return "N/A"
+    try:
+        dt = parse_iso(iso_str)
+        if dt and isinstance(dt, datetime):
+            return dt.strftime("%b %d, %Y %H:%M")
+        return html.escape(str(iso_str or "N/A"))
+    except:
+        return html.escape(str(iso_str or "N/A"))
+
 
 with st.sidebar:
     st.markdown("""
@@ -629,7 +666,8 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Task Board", "Truth Source", "Agent Logs", "Main Owner", "SDK Docs"],
+        nav_options,
+        index=default_index,
         label_visibility="collapsed"
     )
 
@@ -692,9 +730,14 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+    # Variant Selection for A/B Testing Demo (stable per session)
+    if "promo_variant" not in st.session_state:
+        st.session_state.promo_variant = "A" if datetime.now().second % 2 == 0 else "B"
+    if "cta_variant" not in st.session_state:
+        st.session_state.cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
+
+    headline_variant = st.session_state.promo_variant
+    cta_variant = st.session_state.cta_variant
 
     mobile_headlines = {"A": "Main Owner", "B": "Lead Mission"}
     mobile_ctas = {"1": "Setup", "2": "Start"}
@@ -703,7 +746,7 @@ with st.sidebar:
         <div class="promo-icon" style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#128081;</div>
         <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">{mobile_headlines[headline_variant]}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Establish Mission Authority</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
+        <a href="/?page=Main+Owner+Guide" target="_self" class="promo-cta" style="padding: 0.3rem 0.8rem; font-size: 0.7rem; display: block;">{mobile_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -716,29 +759,6 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-def log_analytics(event_name, payload=None):
-    """Mock analytics event logging."""
-    # Simple deduplication for Streamlit reruns
-    last_event = st.session_state.get("last_analytics_event")
-    last_payload = st.session_state.get("last_analytics_payload")
-
-    if last_event == event_name and last_payload == payload:
-        return None
-
-    st.session_state.last_analytics_event = event_name
-    st.session_state.last_analytics_payload = payload
-
-    now = datetime.now().isoformat()
-    log_entry = {
-        "timestamp": now,
-        "event": event_name,
-        "payload": payload or {}
-    }
-    # For demo purposes, we'll log to a file
-    os.makedirs("satya_data/analytics", exist_ok=True)
-    with open("satya_data/analytics/events.log", "a") as f:
-        f.write(json.dumps(log_entry) + "\n")
-    return log_entry
 
 
 # ─── DASHBOARD PAGE ─────────────────────────────────────
@@ -753,7 +773,7 @@ if page == "Dashboard":
         <div class="card-headline">Master Your AI Fleet</div>
         <div class="card-body">Designate a Main Owner for unified oversight, master permissions, and central governance across all agent sessions.</div>
         <div>
-            <a href="#" class="card-cta">Start Onboarding</a>
+            <a href="/?page=Main+Owner+Guide" target="_self" class="card-cta" title="Go to Main Owner Onboarding">Start Onboarding</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -773,7 +793,7 @@ if page == "Dashboard":
     with c1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128202;</div>
+            <div class="metric-icon"><span role="img" aria-label="Chart icon">&#128202;</span></div>
             <div class="metric-value" style="color: var(--primary-light);">{stats['total']}</div>
             <div class="metric-label">Total Tasks</div>
         </div>
@@ -782,7 +802,7 @@ if page == "Dashboard":
     with c2:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#128204;</div>
+            <div class="metric-icon"><span role="img" aria-label="Pushpin icon">&#128204;</span></div>
             <div class="metric-value" style="color: var(--info);">{stats['queued']}</div>
             <div class="metric-label">To Do</div>
         </div>
@@ -791,7 +811,7 @@ if page == "Dashboard":
     with c3:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9889;</div>
+            <div class="metric-icon"><span role="img" aria-label="Lightning icon">&#9889;</span></div>
             <div class="metric-value" style="color: var(--warning);">{stats['in_progress']}</div>
             <div class="metric-label">In Progress</div>
         </div>
@@ -800,17 +820,13 @@ if page == "Dashboard":
     with c4:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-icon">&#9989;</div>
+            <div class="metric-icon"><span role="img" aria-label="Check mark icon">&#9989;</span></div>
             <div class="metric-value" style="color: var(--success);">{stats['done']}</div>
             <div class="metric-label">Completed</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-
-    # Variant Selection for A/B Testing Demo
-    headline_variant = "A" if datetime.now().second % 2 == 0 else "B"
-    cta_variant = "1" if datetime.now().second % 4 < 2 else "2"
 
     hero_headlines = {
         "A": "Command Your Mission: Meet the Main Owner",
@@ -822,11 +838,11 @@ if page == "Dashboard":
     }
 
     st.markdown(f"""
-    <div class="promo-card promo-hero" onclick="window.location.href='?page=Main+Owner+Guide'">
+    <div class="promo-card promo-hero" onclick="window.location.href='/?page=Main+Owner+Guide'">
         <div class="promo-tag">New Feature</div>
         <div class="promo-title">{hero_headlines[headline_variant]}</div>
         <div class="promo-subtitle">Establish ultimate accountability and truth with the Main Owner feature—the single source of authority for your AI agent's mission.</div>
-        <a href="?page=Main+Owner+Guide" class="promo-cta">{hero_ctas[cta_variant]}</a>
+        <a href="/?page=Main+Owner+Guide" target="_self" class="promo-cta">{hero_ctas[cta_variant]}</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -894,7 +910,7 @@ if page == "Dashboard":
                 <div style="font-weight: 700; color: var(--text-primary);">{compact_headlines[headline_variant]}</div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Unify your agent's mission today.</div>
             </div>
-            <a href="?page=Main+Owner+Guide" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
+            <a href="/?page=Main+Owner+Guide" target="_self" class="promo-cta" style="padding: 0.4rem 1rem; font-size: 0.75rem;">{compact_ctas[cta_variant]}</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1214,7 +1230,7 @@ elif page == "Agent Logs":
 
 
 # ─── MAIN OWNER PAGE ─────────────────────────────────────
-elif page == "Main Owner":
+elif page == "Main Owner Guide":
     st.markdown('<div class="hero-header">Main Owner Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Designate a primary human administrator for unified oversight and master control</div>', unsafe_allow_html=True)
 
