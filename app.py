@@ -562,6 +562,13 @@ def parse_iso(iso_str):
     except:
         return html.escape(str(iso_str or "N/A"))
 
+def format_date(iso_str):
+    """Consistent human-readable date strings."""
+    dt = parse_iso(iso_str)
+    if isinstance(dt, datetime):
+        return dt.strftime("%b %d, %Y %H:%M")
+    return dt
+
 def format_time_ago(iso_str):
     try:
         # Handle 'Z' suffix and possible double offset in Python 3.11+
